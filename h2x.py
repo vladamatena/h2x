@@ -34,24 +34,24 @@ class h2xComponent(component.Service):
 	def onIq(self, el):
 		fro = el.getAttribute("from")
 		to = el.getAttribute("to")
-		ID = el.getAttribute("ID")
+		ID = el.getAttribute("id")
 		iqType = el.getAttribute("type")
 		try:
-			fro=internJID(fro)
-			to=internJID(to)
+			fro = internJID(fro)
+			to = internJID(to)
 		except Exception, e:
 			return
-		if to.full()==self.config.JID:
-			self.componentIq(el,fro,ID,iqType)
+		if to.full() == self.config.JID:
+			self.componentIq(el, fro, ID, iqType)
 			return
 		
 		# FIXME: Is this needed ???
-		self.sendIqError(to=fro.full(),fro=to.full(),ID=ID,etype="cancel",condition="service-unavailable")
+		self.sendIqError(to = fro.full(), fro = to.full(),ID=ID,etype="cancel", condition = "service-unavailable")
 
 	def componentIq(self, el, fro, ID, iqType):
 		for query in el.elements():
 			xmlns = query.uri
-			print("ComponentIq: " + xmlns)
+			print("ComponentIq: " + xmlns + " ID: " + ID)
 			node = query.getAttribute("node")
 			
 			if xmlns == "http://jabber.org/protocol/disco#info" and iqType == "get":
@@ -89,6 +89,8 @@ class h2xComponent(component.Service):
 			if xmlns == "vcard-temp" and iqType == "get" and query.name == "vCard":
 				self.getvcard(fro, ID)
 				return
+			
+			print("Iq unhandled")
 			
 			self.sendIqError(to = fro.full(), fro = self.config.JID, ID = ID, eType="cancel", condition="feature-not-implemented")
 
@@ -134,6 +136,11 @@ class h2xComponent(component.Service):
 		self.send(iq)
 
 	def getDiscoInfo(self, el, fro, ID, node):
+		print("Disco info")
+		if node:
+			print("Node: " + node)
+		else:
+			print("Node not set")
 		iq = Element((None, "iq"))
 		iq.attributes["type"] = "result"
 		iq.attributes["from"] = self.config.JID
@@ -142,29 +149,52 @@ class h2xComponent(component.Service):
 			iq.attributes["id"] = ID
 		query = iq.addElement("query")
 		query.attributes["xmlns"] = "http://jabber.org/protocol/disco#info"
-		identity = query.addElement("identity")
-		identity.attributes["name"] = "Google Hangouts transport"
-		identity.attributes["category"] = "gateway"
-		identity.attributes["type"] = "XMPP"
-		query.addElement("feature").attributes["var"] = "vcard-temp"
+		
+		# Node not set -> send component identity
+		if node == None:
+			identity = query.addElement("identity")
+			identity.attributes["name"] = "Google Hangouts transport"
+			identity.attributes["category"] = "gateway"
+			identity.attributes["type"] = "XMPP"
+			query.addElement("feature").attributes["var"] = "vcard-temp"
+			query.addElement("feature").attributes["var"] = "http://jabber.org/protocol/commands"
+			query.addElement("feature").attributes["var"] = "http://jabber.org/protocol/stats"
+			
+			query.addElement("feature").attributes["var"] = "jabber:iq:gateway"
+			query.addElement("feature").attributes["var"] = "jabber:iq:register"
+			query.addElement("feature").attributes["var"] = "jabber:iq:last"
+			query.addElement("feature").attributes["var"] = "jabber:iq:version"
+		
+		# Generic features for both node and component
 		query.addElement("feature").attributes["var"] = "http://jabber.org/protocol/disco#items"
 		query.addElement("feature").attributes["var"] = "http://jabber.org/protocol/disco#info"
-		query.addElement("feature").attributes["var"] = "jabber:iq:gateway"
-		query.addElement("feature").attributes["var"] = "jabber:iq:register"
-		query.addElement("feature").attributes["var"] = "jabber:iq:last"
+			
 		self.send(iq)
 
 	def getDiscoItems(self, el, fro, ID, node):
-		iq = Element((None,"iq"))
+		iq = Element((None, "iq"))
 		iq.attributes["type"] = "result"
 		iq.attributes["from"] = self.config.JID
 		iq.attributes["to"] = fro.full()
+		
+		print("Sendin iq response to " + fro.full())
+		
 		if ID:
 			iq.attributes["id"] = ID
 		query = iq.addElement("query")
 		query.attributes["xmlns"] = "http://jabber.org/protocol/disco#items"
+		
+		if node:
+			print("Node: " + node)
+		else:
+			print("Node not set")
+				
 		if node:
 			query.attributes["node"] = node
+			
+		if node==None:
+			utils.addDiscoItem(query, self.config.JID, "Commands", 'http://jabber.org/protocol/commands')
+		
 		self.send(iq)
 
 	def sendIqResult(self, to, fro, ID, xmlns):
