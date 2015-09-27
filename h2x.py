@@ -6,7 +6,7 @@ from twisted.internet import reactor
 from twisted.words.xish import domish,xpath
 from twisted.words.xish.domish import Element
 from twisted.words.protocols.jabber import xmlstream, client, jid, component
-from twisted.words.protocols.jabber.jid import internJID
+from twisted.words.protocols.jabber.jid import internJID, JID
 
 import hangups
 
@@ -32,18 +32,26 @@ class h2xComponent(component.Service):
 		print("h2x component connected :-)")
 
 	def onMessage(self, el):
-		print("onMessage")
+		raise NotImplementedError
 
 	def onPresence(self, el):
 		sender = el.getAttribute("from")
 		to = el.getAttribute("to")
 		presenceType = el.getAttribute("type")
 		
-		# TODO: Check user is registered
-		#uid=self.db.getIdByJid(fro.userhost())
-        #if not uid:
-        #    self.sendPresenceError(to=fro.full(),fro=to.full(),etype="auth",condition="registration-required")
-        #    return
+		try:
+			sender = JID(sender)
+		except Exception as e:
+			print("User JID parsing failed: " + e.__str__())
+			return
+		
+		
+		# Check user is registered
+		user = self.userdb.getUser(sender.userhostJID().full())
+		print(type(user))
+		if not user:
+			self.sendPresenceError(to = sender, fro = to, eType="auth", condition="registration-required")
+			return
 
 		# Service component presence
 		if to == self.config.JID:
@@ -57,7 +65,7 @@ class h2xComponent(component.Service):
 			
 
 	def componentPresence(self, el, fro, presenceType):
-		print("componentPresence")
+		raise NotImplementedError
 
 	def onIq(self, el):
 		fro = el.getAttribute("from")
@@ -74,7 +82,7 @@ class h2xComponent(component.Service):
 			return
 		
 		# FIXME: Is this needed ???
-		self.sendIqError(to = fro.full(), fro = to.full(),ID=ID,etype="cancel", condition = "service-unavailable")
+		self.sendIqError(to = fro.full(), fro = to.full(), ID=ID,eType="cancel", condition = "service-unavailable")
 
 	def componentIq(self, el, fro, ID, iqType):
 		for query in el.elements():
@@ -123,7 +131,7 @@ class h2xComponent(component.Service):
 			self.sendIqError(to = fro.full(), fro = self.config.JID, ID = ID, eType="cancel", condition="feature-not-implemented")
 
 	def result_vCard(self, el, fro, ID):
-		print("result vcard")
+		raise NotImplementedError
 
 	def getvcard(self, fro, ID):
 		iq = Element((None, "iq"))
@@ -192,10 +200,10 @@ class h2xComponent(component.Service):
 		self.send(presence)
 
 	def getIqGateway(self, fro, ID):
-		print("getIqgateway")
+		raise NotImplementedError
 
 	def setIqGateway(self, el, fro, ID):
-		print("setIqGateway")
+		raise NotImplementedError
 
 	def getLast(self, fro, ID):
 		iq = Element((None,"iq"))
@@ -286,7 +294,7 @@ class h2xComponent(component.Service):
 			sender.send(el)
 
 	def sendPresenceError(self, to, fro, eType, condition):
-		print("sendPresence")
+		raise NotImplementedError
 
 	def sendMessageError(self, to, fro, eType, condition):
-		print("sendMesageError")
+		raise NotImplementedError

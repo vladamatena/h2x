@@ -15,22 +15,24 @@ class UserDB:
 	def __init__(self):
 		self.STORAGE = "users/"
 		
-	def __userPath(self, user):
-		return shlex.quote(self.STORAGE + user.username)
+	def __userPath(self, username):
+		return shlex.quote(self.STORAGE + username)
 		
 	def getUser(self, username):
 		try:
-			file = open(self.__userPath(user), 'r')
+			print(self.__userPath(username))
+			file = open(self.__userPath(username), 'r')
 			token = file.read()
-		except:
+		except Exception as e:
+			print("User lookup failed:" + e.__str__())
 			return None
 		
 		return User(username, token)
 	
 	def putUser(self, user):
-		file = open(self.__userPath(user), 'w')
+		file = open(self.__userPath(user.username), 'w')
 		file.write(user.token)
 		file.close()
 	
 	def removeUser(self, user):
-		os.remove(self.__userPath(user))
+		os.remove(self.__userPath(user.username))
