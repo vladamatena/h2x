@@ -20,7 +20,7 @@ class h2xComponent(component.Service):
 		self.xmlstream.addObserver("/presence", self.onPresence)
 		self.xmlstream.addObserver("/message", self.onMessage)
 		
-		print "h2x component connected :-)"
+		print("h2x component connected :-)")
 
 	def onMessage(self, el):
 		print("onMessage")
@@ -39,7 +39,7 @@ class h2xComponent(component.Service):
 		try:
 			fro = internJID(fro)
 			to = internJID(to)
-		except Exception, e:
+		except Exception as e:
 			return
 		if to.full() == self.config.JID:
 			self.componentIq(el, fro, ID, iqType)
