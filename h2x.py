@@ -1,10 +1,14 @@
 import sys
+import time
+import asyncio
 
 from twisted.internet import reactor
 from twisted.words.xish import domish,xpath
 from twisted.words.xish.domish import Element
 from twisted.words.protocols.jabber import xmlstream, client, jid, component
 from twisted.words.protocols.jabber.jid import internJID
+
+import hangups
 
 import utils
 
@@ -26,7 +30,26 @@ class h2xComponent(component.Service):
 		print("onMessage")
 
 	def onPresence(self, el):
-		print("onPresence")
+		sender = el.getAttribute("from")
+		to = el.getAttribute("to")
+		presenceType = el.getAttribute("type")
+		
+		# TODO: Check user is registered
+		#uid=self.db.getIdByJid(fro.userhost())
+        #if not uid:
+        #    self.sendPresenceError(to=fro.full(),fro=to.full(),etype="auth",condition="registration-required")
+        #    return
+
+		# Service component presence
+		if to == self.config.JID:
+			self.componentPresence(el, sender, presenceType)
+			return
+        
+		print("Presence:")
+		print("From: " + sender)
+		print("To: " + to)
+		print("Type" + presenceType)
+			
 
 	def componentPresence(self, el, fro, presenceType):
 		print("componentPresence")
@@ -51,7 +74,7 @@ class h2xComponent(component.Service):
 	def componentIq(self, el, fro, ID, iqType):
 		for query in el.elements():
 			xmlns = query.uri
-			print("ComponentIq: " + xmlns + " ID: " + ID)
+			print("Processing ComponentIq: " + xmlns + " ID: " + ID)
 			node = query.getAttribute("node")
 			
 			if xmlns == "http://jabber.org/protocol/disco#info" and iqType == "get":
@@ -112,10 +135,55 @@ class h2xComponent(component.Service):
 		self.send(iq)
 
 	def getRegister(self, el, fro, ID):
-		print("getRegister")
+		iq = Element((None,"iq"))
+		iq.attributes["type"]="result"
+		iq.attributes["from"]=self.config.JID
+		iq.attributes["to"]=fro.full()
+		if ID:
+			iq.attributes["id"]=ID
+		query=iq.addElement("query")
+		query.attributes["xmlns"]="jabber:iq:register"
+		
+		# Create registration form
+		form = utils.createForm(query, "form")
+		utils.addTitle(form, "Hangouts registration form")
+		utils.addTextBox(form, "token", "Replace link by token", hangups.auth.OAUTH2_LOGIN_URL, required = True)
+      
+		print("Sending registration form")
+		self.send(iq)
 
-	def setRegister(self, el, fro, ID):
-		print("setRegister")
+
+	def setRegister(self, data, sender, ID):
+		print("Processing registration form data")
+		
+		try:
+			user = sender.userhost()
+			token = data.firstChildElement().firstChildElement().firstChildElement().firstChildElement().__str__()
+		except Exception as e:
+			# Fail registration
+			print("Register reponse processing failed: " + e.__str__())
+			# FIXME: Send negative response here !!!
+			self.sendIqResult(sender.full(), self.config.JID, ID, "jabber:iq:register")
+			return
+		
+		print("Registration processed:")
+		print("Token: " + token)
+		print("User: " + user)
+		
+		# Store token to file according to username
+		tokenFile = open(user, 'w')
+		tokenFile.write(token)
+		tokenFile.close()
+		
+		# Send registration done
+		self.sendIqResult(sender.full(), self.config.JID, ID, "jabber:iq:register")
+		
+		# Request subscription
+		presence = Element((None,"presence"))
+		presence.attributes["to"] = sender.userhost()
+		presence.attributes["from"] = self.config.JID
+		presence.attributes["type"] = "subscribe"
+		self.send(presence)
 
 	def getIqGateway(self, fro, ID):
 		print("getIqgateway")
@@ -136,11 +204,6 @@ class h2xComponent(component.Service):
 		self.send(iq)
 
 	def getDiscoInfo(self, el, fro, ID, node):
-		print("Disco info")
-		if node:
-			print("Node: " + node)
-		else:
-			print("Node not set")
 		iq = Element((None, "iq"))
 		iq.attributes["type"] = "result"
 		iq.attributes["from"] = self.config.JID
@@ -177,18 +240,11 @@ class h2xComponent(component.Service):
 		iq.attributes["from"] = self.config.JID
 		iq.attributes["to"] = fro.full()
 		
-		print("Sendin iq response to " + fro.full())
-		
 		if ID:
 			iq.attributes["id"] = ID
 		query = iq.addElement("query")
 		query.attributes["xmlns"] = "http://jabber.org/protocol/disco#items"
 		
-		if node:
-			print("Node: " + node)
-		else:
-			print("Node not set")
-				
 		if node:
 			query.attributes["node"] = node
 			
@@ -198,7 +254,13 @@ class h2xComponent(component.Service):
 		self.send(iq)
 
 	def sendIqResult(self, to, fro, ID, xmlns):
-		print("sendIqResult")
+		el = Element((None,"iq"))
+		el.attributes["to"] = to
+		el.attributes["from"] = fro
+		if ID:
+			el.attributes["id"] = ID
+			el.attributes["type"] = "result"
+			self.send(el)
 	
 	# TODO: Refactor
 	def sendIqError(self, to, fro, ID, eType, condition, sender = None):
