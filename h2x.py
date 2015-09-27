@@ -38,6 +38,8 @@ class h2xComponent(component.Service):
 		sender = el.getAttribute("from")
 		to = el.getAttribute("to")
 		presenceType = el.getAttribute("type")
+		if not presenceType:
+			presenceType = "available"
 		
 		try:
 			sender = JID(sender)
@@ -48,24 +50,35 @@ class h2xComponent(component.Service):
 		
 		# Check user is registered
 		user = self.userdb.getUser(sender.userhostJID().full())
-		print(type(user))
 		if not user:
 			self.sendPresenceError(to = sender, fro = to, eType="auth", condition="registration-required")
 			return
+		
+		print("Presence:")
+		print("From: " + sender.full())
+		print("To: " + to)
+		print("Type: " + presenceType)
 
 		# Service component presence
 		if to == self.config.JID:
-			self.componentPresence(el, sender, presenceType)
+			self.componentPresence(el, sender, presenceType, user)
 			return
         
 		print("Presence:")
-		print("From: " + sender)
+		print("From: " + sender.full())
 		print("To: " + to)
 		print("Type" + presenceType)
 			
 
-	def componentPresence(self, el, fro, presenceType):
-		raise NotImplementedError
+	def componentPresence(self, el, sender, presenceType, user ):
+		# raise NotImplementedError
+		
+		presence = Element((None,'presence'))
+		presence.attributes['to'] = sender.full()
+		presence.attributes['from'] = self.config.JID
+		presence.attributes['type'] = presenceType#'available'
+		presence.addElement('status', content="Logging in...")
+		self.send(presence)
 
 	def onIq(self, el):
 		fro = el.getAttribute("from")
@@ -285,7 +298,7 @@ class h2xComponent(component.Service):
 			el.attributes["id"] = ID
 			el.attributes["type"] = "error"
 			error = el.addElement("error")
-			error.attributes["type"] = etype
+			error.attributes["type"] = eType
 			error.attributes["code"] = str(utils.errorCodeMap[condition])
 			cond = error.addElement(condition)
 			cond.attributes["xmlns"]="urn:ietf:params:xml:ns:xmpp-stanzas"

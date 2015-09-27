@@ -34,7 +34,7 @@ class Chat(object):
 			print("Loop done")
 			print("Connection closed")
 		finally:
-			loop.close()	
+			loop.close()
 
 	@asyncio.coroutine
 	def onConnect(self, initialData):

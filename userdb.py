@@ -20,7 +20,6 @@ class UserDB:
 		
 	def getUser(self, username):
 		try:
-			print(self.__userPath(username))
 			file = open(self.__userPath(username), 'r')
 			token = file.read()
 		except Exception as e:
