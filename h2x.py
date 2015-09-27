@@ -12,10 +12,15 @@ import hangups
 
 import utils
 
+from userdb import UserDB
+from userdb import User
+
 class h2xComponent(component.Service):
 	def __init__(self, reactor, config):
 		self.config = config
 		self.reactor = reactor
+		
+		self.userdb = UserDB()
 
 	def componentConnected(self, xs):
 		self.xmlstream = xs
@@ -171,9 +176,10 @@ class h2xComponent(component.Service):
 		print("User: " + user)
 		
 		# Store token to file according to username
-		tokenFile = open(user, 'w')
-		tokenFile.write(token)
-		tokenFile.close()
+		#tokenFile = open(user, 'w')
+		#tokenFile.write(token)
+		#tokenFile.close()
+		self.userdb.putUser(User(user, token))
 		
 		# Send registration done
 		self.sendIqResult(sender.full(), self.config.JID, ID, "jabber:iq:register")
