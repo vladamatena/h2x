@@ -40,6 +40,7 @@ Even worse is that I am learning python on the go.
 - Some inspiration and code from pyicqt
 
 ## How to run it
+Setup configuration file
 
 	mkdir users
 	python3.4 transport.py
