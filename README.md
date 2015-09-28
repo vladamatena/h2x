@@ -11,21 +11,22 @@ Bad news is that it is hard to find some time to work on the project.
 Even worse is that I am learning python on the go.
 
 Working(Already "somehow" implemented):
-1. Registration
-2. Transport logon
-3. Transport logoff
-4. Forwarding messages from Hangouts to Jabber (Barely working, all message are resend every time, ...)
-5. Basic presence for contacts on Hangouts contact list
+
+- Registration
+- Transport logon
+- Transport logoff
+- Forwarding messages from Hangouts to Jabber (Barely working, all message are resend every time, ...)
+- Basic presence for contacts on Hangouts contact list
 
 Not working(I would like to implement)
-1. Propper routing of messages from Hangouts to Jabber
-2. Routing of messages from Jabber to Hangouts
-3. Subscription to Hangouts contact presence
-4. Showing Jabber presence on Hangouts
 
-5. Adding new users to Hangouts
+- Propper routing of messages from Hangouts to Jabber
+- Routing of messages from Jabber to Hangouts
+- Subscription to Hangouts contact presence
+- Showing Jabber presence on Hangouts
+- Adding new users to Hangouts
 
 
 
 First message forwared by transport:
-[17:29:31] <100942746420725866514@hangouts.mattty.cz> Hello world!!!
+	[17:29:31] <100942746420725866514@hangouts.mattty.cz> Hello world!!!
