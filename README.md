@@ -10,7 +10,7 @@ The noble purpose of this project is to bridge the gap in between the Hangouts a
 Bad news is that it is hard to find some time to work on the project.
 Even worse is that I am learning python on the go.
 
-Working(Already "somehow" implemented):
+### Working(Already "somehow" implemented):
 
 - Registration
 - Transport logon
@@ -18,7 +18,7 @@ Working(Already "somehow" implemented):
 - Forwarding messages from Hangouts to Jabber (Barely working, all message are resend every time, ...)
 - Basic presence for contacts on Hangouts contact list
 
-Not working(I would like to implement)
+### Not working(I would like to implement)
 
 - Propper routing of messages from Hangouts to Jabber
 - Routing of messages from Jabber to Hangouts
@@ -28,5 +28,18 @@ Not working(I would like to implement)
 
 
 
-First message forwared by transport:
+### First message forwared by transport:
+
 	[17:29:31] <100942746420725866514@hangouts.mattty.cz> Hello world!!!
+
+## Used libraries, code
+
+- Twisted words (for XMPP component implementation) (request specialy fixed version for Python 3 support)
+- Hangups (Working reverese engeneered Hangouts client library)
+- Some inspiration and code from j2j
+- Some inspiration and code from pyicqt
+
+## How to run it
+
+	mkdir users
+	python3.4 transport.py

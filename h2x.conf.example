@@ -1,0 +1,10 @@
+[component]
+JID=hangouts.YOUR_XMPP_SERVER_HOSTANME
+Host=localhost
+Port=SERVER_PORT
+Password=COMPONENT_PASSWORD
+Send_probes=True
+
+[process]
+Pid=/var/run/jabber/h2x.pid ; pid file
+
