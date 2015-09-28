@@ -14,6 +14,7 @@ import utils
 
 from userdb import UserDB
 from userdb import User
+from client import ClientWrapper
 
 class h2xComponent(component.Service):
 	def __init__(self, reactor, config):
@@ -21,6 +22,7 @@ class h2xComponent(component.Service):
 		self.reactor = reactor
 		
 		self.userdb = UserDB()
+		self.clients = {}
 
 	def componentConnected(self, xs):
 		self.xmlstream = xs
@@ -68,9 +70,8 @@ class h2xComponent(component.Service):
 		print("From: " + sender.full())
 		print("To: " + to)
 		print("Type" + presenceType)
-			
 
-	def componentPresence(self, el, sender, presenceType, user ):
+	def componentPresence(self, el, sender, presenceType, user):
 		# raise NotImplementedError
 		
 		presence = Element((None,'presence'))
@@ -79,6 +80,60 @@ class h2xComponent(component.Service):
 		presence.attributes['type'] = presenceType#'available'
 		presence.addElement('status', content="Logging in...")
 		self.send(presence)
+		
+#		if presenceType == "available":
+#			self.clientLogOn(user)
+
+		self.ensureClient(user)
+	
+	# Ensures existence of client wrapper for particular user
+	# Client wrapper is returned
+	def ensureClient(self, user):
+		try:
+			return self.clients[user.username]
+		except:
+			self.clients[user.username] = ClientWrapper(self, user)
+			return self.clients[user.username]
+		
+	def clientLogOn(self, user):
+		print("Getting cookies")
+		
+		def failedToken():
+			#raise RuntimeError("Authentification token is invalid")
+			return user.token
+		
+		print("Tokenpath: " + self.userdb.tokenPath(user))
+		cookies = hangups.auth.get_auth(failedToken, self.userdb.tokenPath(user) + ".refresh")
+		
+		print("Attempting to initialize client")
+		self.clients[user.username] = hangups.Client(cookies)
+		client = self.clients[user.username]
+		print("Client initialization done")
+		
+		client.on_connect.add_observer(self.onConnect)
+		
+	@asyncio.coroutine
+	def onConnect(self, initialData):
+		self.userList = yield from hangups.build_user_list(self.client, initialData)
+		self.convList = hangups.ConversationList(self.client, initialData.conversation_states, self.userList, initialData.sync_timestamp)
+		self.convList.on_event.add_observer(self.onEvent)
+
+		for user in self.userList.get_all():
+			pprint(vars(user))
+
+		print("Disconnecting")
+		self.client.disconnect()
+		print("Connection handler end")
+		
+		# FIXME: make this generic we need to distinguish user
+		
+		# Send user presence
+		#presence = Element((None,'presence'))
+		#presence.attributes['to'] = sender.full()
+		#presence.attributes['from'] = self.config.JID
+		#presence.attributes['type'] = "available"
+		#presence.addElement('status', content="Connected")
+		#self.send(presence)
 
 	def onIq(self, el):
 		fro = el.getAttribute("from")
@@ -192,14 +247,12 @@ class h2xComponent(component.Service):
 			self.sendIqResult(sender.full(), self.config.JID, ID, "jabber:iq:register")
 			return
 		
+		# Debug info
 		print("Registration processed:")
 		print("Token: " + token)
 		print("User: " + user)
 		
-		# Store token to file according to username
-		#tokenFile = open(user, 'w')
-		#tokenFile.write(token)
-		#tokenFile.close()
+		# Store user in db
 		self.userdb.putUser(User(user, token))
 		
 		# Send registration done

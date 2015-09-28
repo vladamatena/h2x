@@ -17,6 +17,12 @@ class UserDB:
 		
 	def __userPath(self, username):
 		return shlex.quote(self.STORAGE + username)
+	
+	def tokenPath(self, user):
+		return self.__userPath(user.username)
+	
+	def tokenRefreshPath(self, user):
+		return self.__userPath(user.username) + ".refresh"
 		
 	def getUser(self, username):
 		try:
