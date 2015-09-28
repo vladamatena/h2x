@@ -95,6 +95,11 @@ class ClientWrapper:
 
 		for user in self.userList.get_all():
 			print(vars(user))
+		
+		# Set user presence
+		for user in self.userList.get_all():
+			if user.is_self == False:
+				self.h2x.sendPresence(self.hang2JID(user), self.userJID, "available", "Present in user list")
 	
 		print("Connection handler end")
 		

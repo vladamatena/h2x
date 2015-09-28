@@ -82,15 +82,19 @@ class h2xComponent(component.Service):
 			client.disconnect()
 		else:
 			raise NotImplementedError("Presence type: " + presenceType)
-
-	# Send component presence
-	def sendComponentPresence(self, destination, presenceType, content):
+	
+	# Send presence
+	def sendPresence(self, source, destination, presenceType, content):
 		presence = Element((None,'presence'))
 		presence.attributes['to'] = destination
-		presence.attributes['from'] = self.config.JID
+		presence.attributes['from'] = source
 		presence.attributes['type'] = presenceType
 		presence.addElement('status', content)
 		self.send(presence)
+
+	# Send component presence
+	def sendComponentPresence(self, destination, presenceType, content):
+		self.sendPresence(self.config.JID, destination, presenceType, content)
 	
 	# Ensures existence of client wrapper for particular user
 	# Client wrapper is returned
@@ -102,10 +106,11 @@ class h2xComponent(component.Service):
 			return self.clients[user.username]
 		
 	# Send message
-	def sendMessage(self, to, fro, text):
+	def sendMessage(self, to, fro, text, messageType = "chat"):
 		el = Element((None, "message"))
 		el.attributes["to"] = to
 		el.attributes["from"] = fro
+		el.attributes["type"] = messageType
 		
 		body = el.addElement("body")
 		body.addContent(escape(text))
