@@ -10,7 +10,6 @@ from threading import Thread
 class ClientWrapper:
 	def __init__(self, h2x, user, userJID):
 		self.h2x = h2x
-		self.userdb = h2x.userdb
 		self.user = user
 		self.userJID = userJID
 		
@@ -56,7 +55,7 @@ class ClientWrapper:
 		
 		# Get outh2 cookies
 		self.h2x.sendComponentPresence(self.userJID, "unavailable", "Getting cookies")
-		cookies = hangups.auth.get_auth(self.getToken, self.userdb.tokenRefreshPath(self.user))
+		cookies = hangups.auth.get_auth(self.getToken, self.user.tokenRefreshPath())
 		
 		# Create client
 		self.h2x.sendComponentPresence(self.userJID, "unavailable", "Initializing client")
@@ -109,10 +108,17 @@ class ClientWrapper:
 		return hangUser.id_.chat_id + "@" + self.h2x.config.JID
 	
 	def onEvent(self, convEvent):
-		conv = self.convList.get(convEvent.conversation_id)
-		user = conv.get_user(convEvent.user_id)
-		self.h2x.sendMessage(self.userJID, self.hang2JID(user), convEvent.text)
-
+		# Chat message
+		if type(convEvent) is hangups.conversation_event.ChatMessageEvent:
+			# Not yet delivered chat message
+			if convEvent.timestamp.timestamp() > self.user.lastMessageTimestamp:
+				# Deliver chat message
+				conv = self.convList.get(convEvent.conversation_id)
+				user = conv.get_user(convEvent.user_id)
+				self.h2x.sendMessage(self.userJID, self.hang2JID(user), convEvent.text)
+				
+				self.user.lastMessageTimestamp = convEvent.timestamp.timestamp()
+		# TODO: Handle other events
 
 
 

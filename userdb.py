@@ -5,39 +5,52 @@
 
 import os
 import shlex
+import datetime
+
+STORAGE = "users/"
 
 class User:
-	def __init__(self, username, token):
-		self.username = username
-		self.token = token
+	def __init__(self, username):
+		self.__username = username
+		
+	def __userPath(self):
+		return shlex.quote(STORAGE + self.username)
+		
+	@property
+	def username(self):
+		return self.__username
 
-class UserDB:
-	def __init__(self):
-		self.STORAGE = "users/"
-		
-	def __userPath(self, username):
-		return shlex.quote(self.STORAGE + username)
-	
-	def tokenPath(self, user):
-		return self.__userPath(user.username)
-	
-	def tokenRefreshPath(self, user):
-		return self.__userPath(user.username) + ".refresh"
-		
-	def getUser(self, username):
+	@property
+	def token(self):
 		try:
-			file = open(self.__userPath(username), 'r')
-			token = file.read()
-		except Exception as e:
-			print("User lookup failed:" + e.__str__())
-			return None
+			file = open(self.__userPath(), 'r')
+			return file.read()
+		except BaseException as e:
+			raise Exception("Token not available for user " + self.username) from e
+        
+	@token.setter
+	def token(self, value):
+		self.__token = value;
+
+	@property
+	def lastMessageTimestamp(self):
+		try:
+			file = open(self.__userPath() + ".lastmessage", 'r')
+			return float(file.read())
+		except:
+			return 0
 		
-		return User(username, token)
+	@lastMessageTimestamp.setter
+	def lastMessageTimestamp(self, value):
+		try:
+			file = open(self.__userPath() + ".lastmessage", 'w')
+			file.write(str(value))
+			file.close()
+		except BaseException as e:
+			raise("Failed to read last message time for user " + self.username) from e
 	
-	def putUser(self, user):
-		file = open(self.__userPath(user.username), 'w')
-		file.write(user.token)
-		file.close()
+	def tokenPath(self):
+		return self.__userPath()
 	
-	def removeUser(self, user):
-		os.remove(self.__userPath(user.username))
+	def tokenRefreshPath(self):
+		return self.__userPath() + ".refresh"

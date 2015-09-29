@@ -14,7 +14,6 @@ import hangups
 
 import utils
 
-from userdb import UserDB
 from userdb import User
 from client import ClientWrapper
 
@@ -23,7 +22,6 @@ class h2xComponent(component.Service):
 		self.config = config
 		self.reactor = reactor
 		
-		self.userdb = UserDB()
 		self.clients = {}
 
 	def componentConnected(self, xs):
@@ -53,8 +51,11 @@ class h2xComponent(component.Service):
 		
 		
 		# Check user is registered
-		user = self.userdb.getUser(sender.userhostJID().full())
-		if not user:
+		user = User(sender.userhostJID().full())
+		try:
+			user.token
+		except Exception as e:
+			print(e)
 			self.sendPresenceError(to = sender, fro = to, eType="auth", condition="registration-required")
 			return
 		
@@ -230,7 +231,7 @@ class h2xComponent(component.Service):
 		print("User: " + user)
 		
 		# Store user in db
-		self.userdb.putUser(User(user, token))
+		User(user).token = token
 		
 		# Send registration done
 		self.sendIqResult(sender.full(), self.config.JID, ID, "jabber:iq:register")
