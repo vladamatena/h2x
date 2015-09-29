@@ -111,18 +111,7 @@ class ClientWrapper:
 	def onEvent(self, convEvent):
 		conv = self.convList.get(convEvent.conversation_id)
 		user = conv.get_user(convEvent.user_id)
-		print("Message")
-		print("User:")
-		print(vars(user))
-		print("Conv:")
-		print(vars(conv))
-		
-		
-		for event in conv._events:
-			print("Event")
-			print(type(event))
-			print(event.text)
-			self.h2x.sendMessage(self.userJID, self.hang2JID(user), event.text)
+		self.h2x.sendMessage(self.userJID, self.hang2JID(user), convEvent.text)
 
 
 
