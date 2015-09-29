@@ -1,9 +1,11 @@
 # h2x (Hangouts to XMPP transport)
 
 ## Message to others
-The code in this repository is absolutely disgusting, broken and incomplete. The purpose of making this repository public is to show that someone is working on it.
+
+The code in this repository is absolutely disgusting, broken and incomplete. The purpose of making this repository public is to show that someone is working on it. If someone would like to join, let me know before you start hacking as I am currently running in noncoperative mode.
 
 ## About project
+
 The noble purpose of this project is to bridge the gap in between the Hangouts and the Jabber network which emerged when Google closed XMPP gateway to its chat services. The problem is tackled by providing Hangouts to XMPP transport, which allows users to add Hangouts contacts to their XMPP roaster while supporting bidirectional text messaging (the same way as pyicqt suports ICQ network).
 
 ## State of the transport
@@ -15,13 +17,14 @@ Even worse is that I am learning python on the go.
 - Registration
 - Transport logon
 - Transport logoff
-- Forwarding messages from Hangouts to Jabber (Barely working, all message are resend every time, ...)
+- Forwarding messages from Hangouts to Jabber and vice versa (Barely working, not tested)
 - Basic presence for contacts on Hangouts contact list
 
 ### Not working(I would like to implement)
 
-- Propper routing of messages from Hangouts to Jabber
-- Routing of messages from Jabber to Hangouts
+- Proper routing of messages from Hangouts to Jabber
+- Proper routing of messages from Jabber to Hangouts
+- Solve matching conversations to contacts
 - Subscription to Hangouts contact presence
 - Showing Jabber presence on Hangouts
 - Adding new users to Hangouts
