@@ -37,9 +37,6 @@ class ClientWrapper:
 		if self.thread != None:
 			print("Stopping client thread")
 			
-			print("Calling disconnect")
-			print("Disconnecting")
-	
 			future = asyncio.async(self.client.disconnect(), loop = self.loop)
 			future.add_done_callback(lambda future: print("Disconnect done"))
 	
@@ -92,11 +89,8 @@ class ClientWrapper:
 		self.userList = yield from hangups.build_user_list(self.client, initialData)
 		self.convList = hangups.ConversationList(self.client, initialData.conversation_states, self.userList, initialData.sync_timestamp)
 		self.convList.on_event.add_observer(self.onEvent)
-
-		for user in self.userList.get_all():
-			print(vars(user))
 		
-		# Set user presence
+		# Send presence for users on contact list
 		for user in self.userList.get_all():
 			if user.is_self == False:
 				self.h2x.sendPresence(self.hang2JID(user), self.userJID, "available", "Present in user list")
@@ -110,7 +104,6 @@ class ClientWrapper:
 	@asyncio.coroutine
 	def onReconnect(self):
 		print("Reconnected")
-		
 		
 	def hang2JID(self, hangUser):
 		return hangUser.id_.chat_id + "@" + self.h2x.config.JID

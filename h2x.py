@@ -59,19 +59,14 @@ class h2xComponent(component.Service):
 			return
 		
 		print("Presence:")
-		print("From: " + sender.full())
-		print("To: " + to)
-		print("Type: " + presenceType)
+		print("> From: " + sender.full())
+		print("> To: " + to)
+		print("> Type: " + presenceType)
 
 		# Service component presence
 		if to == self.config.JID:
 			self.componentPresence(el, sender, presenceType, user)
 			return
-        
-		print("Presence:")
-		print("From: " + sender.full())
-		print("To: " + to)
-		print("Type" + presenceType)
 
 	def componentPresence(self, el, sender, presenceType, user):
 		client = self.ensureClient(user, sender)
