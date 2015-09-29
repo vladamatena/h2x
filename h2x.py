@@ -101,7 +101,7 @@ class h2xComponent(component.Service):
 		presence.attributes['to'] = destination
 		presence.attributes['from'] = source
 		presence.attributes['type'] = presenceType
-		presence.addElement('status', content)
+		presence.addElement('status').addContent(content)
 		self.send(presence)
 
 	# Send component presence
