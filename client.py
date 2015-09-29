@@ -4,7 +4,8 @@ import sys
 import hangups
 import time
 import asyncio
-from threading import Thread
+import re
+import threading
 
 
 class ClientWrapper:
@@ -27,7 +28,7 @@ class ClientWrapper:
 		print("Connect!!!")
 		self.disconnect()
 		
-		self.thread = Thread(target = self.clientBody)
+		self.thread = threading.Thread(target = self.clientBody)
 		self.thread.start()
 	
 	def disconnect(self):
@@ -93,6 +94,14 @@ class ClientWrapper:
 		for user in self.userList.get_all():
 			if user.is_self == False:
 				self.h2x.sendPresence(self.hang2JID(user), self.userJID, "available", "Present in user list")
+				
+		print("Conversations: ")
+		for c in self.convList.get_all():
+			#print(vars(c))
+			print("> Conversation users:")
+			for u in c.users:
+				print("> > User:")
+				print(vars(u))
 	
 		print("Connection handler end")
 		
@@ -105,24 +114,54 @@ class ClientWrapper:
 		print("Reconnected")
 		
 	def hang2JID(self, hangUser):
-		return hangUser.id_.chat_id + "@" + self.h2x.config.JID
+		return hangUser.id_.chat_id + "." + hangUser.id_.gaia_id + "@" + self.h2x.config.JID
+	
+	def JID2Hang(self, userJID):
+		SUFFIX = "@" + self.h2x.config.JID + "$";
+		print("Suffix: " + SUFFIX)
+		if not re.match(".*" + SUFFIX, userJID):
+			raise Exception(userJID + " is not valid user JID for the transport")
+		userIdParts = re.sub(SUFFIX, "", userJID).split(".")
+		userChatId = userIdParts[0]
+		userGaiaId = userIdParts[1]
+		return hangups.user.UserID(userChatId, userGaiaId)
 	
 	def onEvent(self, convEvent):
 		# Chat message
 		if type(convEvent) is hangups.conversation_event.ChatMessageEvent:
 			# Not yet delivered chat message
+			# TODO: Use conversation -> unread events
 			if convEvent.timestamp.timestamp() > self.user.lastMessageTimestamp:
 				# Deliver chat message
 				conv = self.convList.get(convEvent.conversation_id)
 				user = conv.get_user(convEvent.user_id)
-				self.h2x.sendMessage(self.userJID, self.hang2JID(user), convEvent.text)
+				if not user.is_self:
+					self.h2x.sendMessage(self.userJID, self.hang2JID(user), convEvent.text)
 				
 				self.user.lastMessageTimestamp = convEvent.timestamp.timestamp()
 		# TODO: Handle other events
 
-
-
-
-
-
-
+	def sendMessage(self, recipientJID, text):
+		# Pick the coversation with the recipient user only
+		conversation = None
+		userId = self.JID2Hang(recipientJID)
+		print(vars(userId))
+		print("Inspecting conversations: ")
+		for c in self.convList.get_all():
+			print(vars(c))
+			if len(c.users) == 2:
+				print("Has 2 users")
+				for u in c.users:
+					print(vars(u))
+					if u.id_.__dict__ == userId.__dict__:
+						print("MATCHES")
+						conversation = c
+						
+		if conversation == None:
+			raise "No conversation found for the recipient"
+		
+		# Send message
+		segments = hangups.ChatMessageSegment.from_str(text)
+		asyncio.async(
+			conversation.send_message(segments), loop = self.loop
+		).add_done_callback(lambda x: print("Message sent"))

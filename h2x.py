@@ -33,8 +33,24 @@ class h2xComponent(component.Service):
 		
 		print("h2x component connected :-)")
 
+	# Forward message to Hangouts client
 	def onMessage(self, el):
-		raise NotImplementedError
+		msgType = el.getAttribute("type")
+		recipient = el.getAttribute("to")
+		sender = el.getAttribute("from")
+		text = el.firstChildElement().__str__()
+		
+		try:
+			sender = JID(sender)
+		except Exception as e:
+			print("User JID parsing failed: " + e.__str__())
+			return
+		
+		if msgType == "chat":
+			user = User(sender.userhostJID().full())
+			self.clients[user.username].sendMessage(recipient, text)
+		else:
+			raise NotImplementedError
 
 	def onPresence(self, el):
 		sender = el.getAttribute("from")
@@ -110,7 +126,6 @@ class h2xComponent(component.Service):
 		
 		body = el.addElement("body")
 		body.addContent(escape(text))
-		""
 		self.send(el)
 		
 	def onIq(self, el):
@@ -195,13 +210,13 @@ class h2xComponent(component.Service):
 
 	def getRegister(self, el, fro, ID):
 		iq = Element((None,"iq"))
-		iq.attributes["type"]="result"
-		iq.attributes["from"]=self.config.JID
-		iq.attributes["to"]=fro.full()
+		iq.attributes["type"] = "result"
+		iq.attributes["from"] = self.config.JID
+		iq.attributes["to"] = fro.full()
 		if ID:
 			iq.attributes["id"]=ID
-		query=iq.addElement("query")
-		query.attributes["xmlns"]="jabber:iq:register"
+		query = iq.addElement("query")
+		query.attributes["xmlns"] = "jabber:iq:register"
 		
 		# Create registration form
 		form = utils.createForm(query, "form")
