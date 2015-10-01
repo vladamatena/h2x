@@ -3,12 +3,37 @@ from twisted.words.protocols.jabber.jid import internJID, JID
 from twisted.words.xish.domish import Element
 import hangups
 
+# Builder for form element
+class Form:
+	# Creates form
+	def __init__(self, iq):
+		self.iq = iq
+		
+		# Create form element
+		self.form = iq.addElement("x")
+		self.form.attributes["xmlns"] = "jabber:x:data"
+		self.form.attributes["type"] = "form"
+
+	# Adds title to form element
+	def addTitle(self, caption):
+		self.form.addElement("title", content = caption)
+
+	# Adds text box to form element
+	def addTextBox(self, name, caption, value, required = False):
+		textBox = self.form.addElement("field")
+		textBox.attributes["type"] = "text-single"
+		textBox.attributes["var"] = name
+		textBox.attributes["label"] = caption
+		textBox.addElement("value", content = value)
+		if required:
+			textBox.addElement("required")
+
+# Inteligent query handling
 class Iq:
 	def __init__(self, h2x):
 		self.h2x = h2x
 
 	def onIq(self, el):
-		print("onIq")
 		fro = el.getAttribute("from")
 		to = el.getAttribute("to")
 		ID = el.getAttribute("id")
@@ -23,35 +48,32 @@ class Iq:
 			return
 		
 		# FIXME: Is this needed ???
-		self.__sendIqError(to = fro.full(), fro = to.full(), ID=ID,eType="cancel", condition = "service-unavailable")
+		self.__sendIqError(to = fro.full(), fro = to.full(), ID = ID, eType = "cancel", condition = "service-unavailable")
 		
 	def componentIq(self, el, fro, ID, iqType):
 		for query in el.elements():
 			xmlns = query.uri
-			print("Processing ComponentIq: " + xmlns + " ID: " + ID)
 			node = query.getAttribute("node")
 			
 			if xmlns == "http://jabber.org/protocol/disco#info" and iqType == "get":
-				self.getDiscoInfo(el, fro, ID, node)
+				self.__getDiscoInfo(el, fro, ID, node)
 				return
 			
 			if xmlns == "http://jabber.org/protocol/disco#items" and iqType == "get":
-				self.getDiscoItems(el, fro, ID, node)
+				self.__getDiscoItems(el, fro, ID, node)
 				return
 			
 			if xmlns == "jabber:iq:register" and iqType == "get":
-				self.getRegister(el, fro, ID)
+				self.__getRegister(el, fro, ID)
 				return
 
 			if xmlns == "jabber:iq:register" and iqType == "set":
-				self.setRegister(el, fro, ID)
+				self.__setRegister(el, fro, ID)
 				return
 
-			print("Iq unhandled")
-			
-			self.__sendIqError(to = fro.full(), fro = self.h2x.config.JID, ID = ID, eType="cancel", condition="feature-not-implemented")
+			self.__sendIqError(to = fro.full(), fro = self.h2x.config.JID, ID = ID, eType = "cancel", condition = "feature-not-implemented")
 
-	def getRegister(self, el, fro, ID):
+	def __getRegister(self, el, fro, ID):
 		iq = Element((None,"iq"))
 		iq.attributes["type"] = "result"
 		iq.attributes["from"] = self.h2x.config.JID
@@ -62,17 +84,12 @@ class Iq:
 		query.attributes["xmlns"] = "jabber:iq:register"
 		
 		# Create registration form
-		form = self.__createForm(query, "form")
-		self.__addTitle(form, "Hangouts registration form")
-		self.__addTextBox(form, "token", "Replace link by token", hangups.auth.OAUTH2_LOGIN_URL, required = True)
-      
-		print("Sending registration form")
+		form = Form(query)
+		form.addTitle("Hangouts registration form")
+		form.addTextBox("token", "Replace link by token", hangups.auth.OAUTH2_LOGIN_URL, required = True)
 		self.h2x.send(iq)
 
-
-	def setRegister(self, data, sender, ID):
-		print("Processing registration form data")
-		
+	def __setRegister(self, data, sender, ID):
 		try:
 			user = sender.userhost()
 			token = data.firstChildElement().firstChildElement().firstChildElement().firstChildElement().__str__()
@@ -80,13 +97,13 @@ class Iq:
 			# Fail registration
 			print("Register reponse processing failed: " + e.__str__())
 			# FIXME: Send negative response here !!!
-			self.sendIqResult(sender.full(), self.h2x.config.JID, ID, "jabber:iq:register")
+			self.__sendIqResult(sender.full(), self.h2x.config.JID, ID, "jabber:iq:register")
 			return
 		
 		self.h2x.registerUser(user, token)
 		
 		# Send registration done
-		self.sendIqResult(sender.full(), self.h2x.config.JID, ID, "jabber:iq:register")
+		self.__sendIqResult(sender.full(), self.h2x.config.JID, ID, "jabber:iq:register")
 		
 		# Request subscription
 		presence = Element((None,"presence"))
@@ -95,7 +112,7 @@ class Iq:
 		presence.attributes["type"] = "subscribe"
 		self.h2x.send(presence)
 
-	def getDiscoInfo(self, el, fro, ID, node):
+	def __getDiscoInfo(self, el, fro, ID, node):
 		iq = Element((None, "iq"))
 		iq.attributes["type"] = "result"
 		iq.attributes["from"] = self.h2x.config.JID
@@ -120,7 +137,7 @@ class Iq:
 			
 		self.h2x.send(iq)
 
-	def getDiscoItems(self, el, fro, ID, node):
+	def __getDiscoItems(self, el, fro, ID, node):
 		iq = Element((None, "iq"))
 		iq.attributes["type"] = "result"
 		iq.attributes["from"] = self.h2x.config.JID
@@ -136,7 +153,7 @@ class Iq:
 		
 		self.h2x.send(iq)
 
-	def sendIqResult(self, to, fro, ID, xmlns):
+	def __sendIqResult(self, to, fro, ID, xmlns):
 		el = Element((None,"iq"))
 		el.attributes["to"] = to
 		el.attributes["from"] = fro
@@ -144,26 +161,6 @@ class Iq:
 			el.attributes["id"] = ID
 			el.attributes["type"] = "result"
 			self.h2x.send(el)
-			
-	def __createForm(self, iq, formType):
-		form=iq.addElement("x")
-		form.attributes["xmlns"] = "jabber:x:data"
-		form.attributes["type"] = formType
-		return form
-
-	def __addTitle(self, form, caption):
-		title = form.addElement("title", content = caption)
-		return title
-
-	def __addTextBox(self, form, name, caption, value, required = False):
-		textBox = form.addElement("field")
-		textBox.attributes["type"] = "text-single"
-		textBox.attributes["var"] = name
-		textBox.attributes["label"] = caption
-		value = textBox.addElement("value", content = value)
-		if required:
-			textBox.addElement("required")
-		return textBox
 	
 	# TODO: Refactor
 	def __sendIqError(self, to, fro, ID, eType, condition, sender = None):
@@ -177,7 +174,7 @@ class Iq:
 			error.attributes["type"] = eType
 			error.attributes["code"] = str(utils.errorCodeMap[condition])
 			cond = error.addElement(condition)
-			cond.attributes["xmlns"]="urn:ietf:params:xml:ns:xmpp-stanzas"
+			cond.attributes["xmlns"] = "urn:ietf:params:xml:ns:xmpp-stanzas"
 			if not sender:
 				sender = self.h2x
 			sender.send(el)
