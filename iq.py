@@ -93,7 +93,7 @@ class Iq:
 		presence.attributes["to"] = sender.userhost()
 		presence.attributes["from"] = self.h2x.config.JID
 		presence.attributes["type"] = "subscribe"
-		self.send(presence)
+		self.h2x.send(presence)
 
 	def getDiscoInfo(self, el, fro, ID, node):
 		iq = Element((None, "iq"))
@@ -144,16 +144,7 @@ class Iq:
 			el.attributes["id"] = ID
 			el.attributes["type"] = "result"
 			self.h2x.send(el)
-		
-	def __addDiscoItem(self, query, jid, name = None, node = None):
-		item = query.addElement("item")
-		item.attributes["jid"] = jid
-		if name:
-			item.attributes["name"] = name
-		if node:
-			item.attributes["node"] = node
-		return item
-
+			
 	def __createForm(self, iq, formType):
 		form=iq.addElement("x")
 		form.attributes["xmlns"] = "jabber:x:data"
