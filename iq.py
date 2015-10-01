@@ -106,11 +106,7 @@ class Iq:
 		self.__sendIqResult(sender.full(), self.h2x.config.JID, ID, "jabber:iq:register")
 		
 		# Request subscription
-		presence = Element((None,"presence"))
-		presence.attributes["to"] = sender.userhost()
-		presence.attributes["from"] = self.h2x.config.JID
-		presence.attributes["type"] = "subscribe"
-		self.h2x.send(presence)
+		self.h2x.sendPresence(sender.userhost(), "subscribe")
 
 	def __getDiscoInfo(self, el, fro, ID, node):
 		iq = Element((None, "iq"))

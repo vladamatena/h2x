@@ -63,7 +63,7 @@ class h2xComponent(component.Service):
 		try:
 			sender = JID(sender)
 		except Exception as e:
-			print("User JID parsing failed: " + e.__str__())
+			print("User JID parsing failed: " + sender + ": " + e.__str__())
 			return
 		
 		
@@ -93,21 +93,22 @@ class h2xComponent(component.Service):
 			client.connect()
 		elif presenceType == "unavailable":
 			client.disconnect()
+		elif presenceType == "probe":
+			print("Presence probe not supported")
 		else:
 			raise NotImplementedError("Presence type: " + presenceType)
 	
 	# Send presence
-	def sendPresence(self, source, destination, presenceType, content):
+	def sendPresence(self, destination, presenceType, content = None, source = None):
+		if not source:
+			source = self.config.JID
 		presence = Element((None,'presence'))
 		presence.attributes['to'] = destination
 		presence.attributes['from'] = source
 		presence.attributes['type'] = presenceType
-		presence.addElement('status').addContent(content)
+		if content:
+			presence.addElement('status').addContent(content)
 		self.send(presence)
-
-	# Send component presence
-	def sendComponentPresence(self, destination, presenceType, content):
-		self.sendPresence(self.config.JID, destination, presenceType, content)
 	
 	# Ensures existence of client wrapper for particular user
 	# Client wrapper is returned

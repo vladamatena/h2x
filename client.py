@@ -17,7 +17,7 @@ class ClientWrapper:
 		self.thread = None
 		self.loop = None
 		
-		self.h2x.sendComponentPresence(self.userJID, "unavailable", "Client wrapper created")
+		self.h2x.sendPresence(self.userJID, "unavailable", "Client wrapper created")
 	
 	# Provides token if refresh fails
 	# Would be nice to ask user for token
@@ -44,7 +44,7 @@ class ClientWrapper:
 			self.thread = None
 			self.loop = None
 				
-		self.h2x.sendComponentPresence(self.userJID, "unavailable", "Client disconnected")
+		self.h2x.sendPresence(self.userJID, "unavailable", "Client disconnected")
 		
 		print("Disconnect done")
 	
@@ -55,11 +55,11 @@ class ClientWrapper:
 		asyncio.set_event_loop(loop)
 		
 		# Get outh2 cookies
-		self.h2x.sendComponentPresence(self.userJID, "unavailable", "Getting cookies")
+		self.h2x.sendPresence(self.userJID, "unavailable", "Getting cookies")
 		cookies = hangups.auth.get_auth(self.getToken, self.user.tokenRefreshPath())
 		
 		# Create client
-		self.h2x.sendComponentPresence(self.userJID, "unavailable", "Initializing client")
+		self.h2x.sendPresence(self.userJID, "unavailable", "Initializing client")
 		self.client = hangups.Client(cookies)
 		
 		# Add state change observers
@@ -68,7 +68,7 @@ class ClientWrapper:
 		self.client.on_reconnect.add_observer(self.onReconnect)
 		
 		# Connect and run client
-		self.h2x.sendComponentPresence(self.userJID, "unavailable", "Client connecting...")
+		self.h2x.sendPresence(self.userJID, "unavailable", "Client connecting...")
 		# This will return when connection ends
 		try:
 			print("Running in loop")
@@ -78,13 +78,13 @@ class ClientWrapper:
 			loop.close()
 		
 		# Notify about client termination
-		self.h2x.sendComponentPresence(self.userJID, "unavailable", "Client disconnected")
+		self.h2x.sendPresence(self.userJID, "unavailable", "Client disconnected")
 		print("Client thread terminates")
 
 	@asyncio.coroutine
 	def onConnect(self, initialData):
 		print("Connected!")
-		self.h2x.sendComponentPresence(self.userJID, "available", "Online")
+		self.h2x.sendPresence(self.userJID, "available", "Online")
 		
 		self.userList = yield from hangups.build_user_list(self.client, initialData)
 		self.convList = hangups.ConversationList(self.client, initialData.conversation_states, self.userList, initialData.sync_timestamp)
@@ -93,7 +93,8 @@ class ClientWrapper:
 		# Send presence for users on contact list
 		for user in self.userList.get_all():
 			if user.is_self == False:
-				self.h2x.sendPresence(self.hang2JID(user), self.userJID, "available", "Present in user list")
+				print("Sending rpesence to " + self.hang2JID(user))
+				self.h2x.sendPresence(self.userJID, "available", content = "Present in user list", source = self.hang2JID(user))
 				
 		print("Conversations: ")
 		for c in self.convList.get_all():
