@@ -258,12 +258,6 @@ class h2xComponent(component.Service):
 		presence.attributes["type"] = "subscribe"
 		self.send(presence)
 
-	def getIqGateway(self, fro, ID):
-		raise NotImplementedError
-
-	def setIqGateway(self, el, fro, ID):
-		raise NotImplementedError
-
 	def getLast(self, fro, ID):
 		iq = Element((None,"iq"))
 		iq.attributes["type"]="result"
