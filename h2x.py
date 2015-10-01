@@ -95,6 +95,8 @@ class h2xComponent(component.Service):
 			client.disconnect()
 		elif presenceType == "probe":
 			print("Presence probe not supported")
+		elif presenceType == "subscribed":
+			print("Presence type subscribed not supported")
 		else:
 			raise NotImplementedError("Presence type: " + presenceType)
 	
