@@ -12,7 +12,7 @@ from xml.sax.saxutils import escape
 
 import hangups
 
-import utils
+from iq import Iq
 
 from userdb import User
 from client import ClientWrapper
@@ -21,13 +21,14 @@ class h2xComponent(component.Service):
 	def __init__(self, reactor, config):
 		self.config = config
 		self.reactor = reactor
+		self.iq = Iq(self)
 		
 		self.clients = {}
 
 	def componentConnected(self, xs):
 		self.xmlstream = xs
 		
-		self.xmlstream.addObserver("/iq", self.onIq)
+		self.xmlstream.addObserver("/iq", self.iq.onIq)
 		self.xmlstream.addObserver("/presence", self.onPresence)
 		self.xmlstream.addObserver("/message", self.onMessage)
 		
@@ -128,223 +129,16 @@ class h2xComponent(component.Service):
 		body.addContent(escape(text))
 		self.send(el)
 		
-	def onIq(self, el):
-		fro = el.getAttribute("from")
-		to = el.getAttribute("to")
-		ID = el.getAttribute("id")
-		iqType = el.getAttribute("type")
-		try:
-			fro = internJID(fro)
-			to = internJID(to)
-		except Exception as e:
-			return
-		if to.full() == self.config.JID:
-			self.componentIq(el, fro, ID, iqType)
-			return
-		
-		# FIXME: Is this needed ???
-		self.sendIqError(to = fro.full(), fro = to.full(), ID=ID,eType="cancel", condition = "service-unavailable")
-
-	def componentIq(self, el, fro, ID, iqType):
-		for query in el.elements():
-			xmlns = query.uri
-			print("Processing ComponentIq: " + xmlns + " ID: " + ID)
-			node = query.getAttribute("node")
-			
-			if xmlns == "http://jabber.org/protocol/disco#info" and iqType == "get":
-				self.getDiscoInfo(el, fro, ID, node)
-				return
-			
-			if xmlns == "http://jabber.org/protocol/disco#items" and iqType == "get":
-				self.getDiscoItems(el, fro, ID, node)
-				return
-			
-			if xmlns == "jabber:iq:register" and iqType == "get":
-				self.getRegister(el, fro, ID)
-				return
-
-			if xmlns == "jabber:iq:register" and iqType == "set":
-				self.setRegister(el, fro, ID)
-				return
-			
-			if xmlns == "vcard-temp" and iqType == "result":
-				self.result_vCard(el, fro, ID)
-				return
-			
-			if xmlns=="jabber:iq:last" and iqType=="get":
-				self.getLast(fro, ID)
-				return
-			
-			if xmlns == "jabber:iq:gateway" and iqType == "get":
-				self.getIqGateway(fro, ID)
-				return
-
-			if xmlns == "jabber:iq:gateway" and iqType == "set":
-				self.setIqGateway(el, fro, ID)
-				return
-
-			if xmlns == "vcard-temp" and iqType == "get" and query.name == "vCard":
-				self.getvcard(fro, ID)
-				return
-			
-			print("Iq unhandled")
-			
-			self.sendIqError(to = fro.full(), fro = self.config.JID, ID = ID, eType="cancel", condition="feature-not-implemented")
-
-	def result_vCard(self, el, fro, ID):
-		raise NotImplementedError
-
-	def getvcard(self, fro, ID):
-		iq = Element((None, "iq"))
-		iq.attributes["type"] = "result"
-		iq.attributes["from"] = self.config.JID
-		iq.attributes["to"] = fro.full()
-		if ID:
-			iq.attributes["id"] = ID
-		vcard = iq.addElement("vCard")
-		vcard.attributes["xmlns"] = "vcard-temp"
-		vcard.addElement("NICKNAME", content = "h2x")
-		vcard.addElement("DESC", content = "Google Hangouts to XMPP Transport")
-		vcard.addElement("URL", content = "http://mattty.cz")
-		self.send(iq)
-
-	def getRegister(self, el, fro, ID):
-		iq = Element((None,"iq"))
-		iq.attributes["type"] = "result"
-		iq.attributes["from"] = self.config.JID
-		iq.attributes["to"] = fro.full()
-		if ID:
-			iq.attributes["id"]=ID
-		query = iq.addElement("query")
-		query.attributes["xmlns"] = "jabber:iq:register"
-		
-		# Create registration form
-		form = utils.createForm(query, "form")
-		utils.addTitle(form, "Hangouts registration form")
-		utils.addTextBox(form, "token", "Replace link by token", hangups.auth.OAUTH2_LOGIN_URL, required = True)
-      
-		print("Sending registration form")
-		self.send(iq)
-
-
-	def setRegister(self, data, sender, ID):
-		print("Processing registration form data")
-		
-		try:
-			user = sender.userhost()
-			token = data.firstChildElement().firstChildElement().firstChildElement().firstChildElement().__str__()
-		except Exception as e:
-			# Fail registration
-			print("Register reponse processing failed: " + e.__str__())
-			# FIXME: Send negative response here !!!
-			self.sendIqResult(sender.full(), self.config.JID, ID, "jabber:iq:register")
-			return
-		
+	# Register user
+	def registerUser(self, username, token):
 		# Debug info
 		print("Registration processed:")
 		print("Token: " + token)
-		print("User: " + user)
+		print("User: " + username)
 		
 		# Store user in db
-		User(user).token = token
+		User(username).token = token
 		
-		# Send registration done
-		self.sendIqResult(sender.full(), self.config.JID, ID, "jabber:iq:register")
-		
-		# Request subscription
-		presence = Element((None,"presence"))
-		presence.attributes["to"] = sender.userhost()
-		presence.attributes["from"] = self.config.JID
-		presence.attributes["type"] = "subscribe"
-		self.send(presence)
-
-	def getLast(self, fro, ID):
-		iq = Element((None,"iq"))
-		iq.attributes["type"]="result"
-		iq.attributes["from"]=self.config.JID
-		iq.attributes["to"]=fro.full()
-		if ID:
-			iq.attributes["id"]=ID
-		query=iq.addElement("query")
-		query.attributes["xmlns"]="jabber:iq:last"
-		query.attributes["seconds"]=str(int(time.time()-self.startTime))
-		self.send(iq)
-
-	def getDiscoInfo(self, el, fro, ID, node):
-		iq = Element((None, "iq"))
-		iq.attributes["type"] = "result"
-		iq.attributes["from"] = self.config.JID
-		iq.attributes["to"] = fro.full()
-		if ID:
-			iq.attributes["id"] = ID
-		query = iq.addElement("query")
-		query.attributes["xmlns"] = "http://jabber.org/protocol/disco#info"
-		
-		# Node not set -> send component identity
-		if node == None:
-			identity = query.addElement("identity")
-			identity.attributes["name"] = "Google Hangouts transport"
-			identity.attributes["category"] = "gateway"
-			identity.attributes["type"] = "XMPP"
-			query.addElement("feature").attributes["var"] = "vcard-temp"
-			query.addElement("feature").attributes["var"] = "http://jabber.org/protocol/commands"
-			query.addElement("feature").attributes["var"] = "http://jabber.org/protocol/stats"
-			
-			query.addElement("feature").attributes["var"] = "jabber:iq:gateway"
-			query.addElement("feature").attributes["var"] = "jabber:iq:register"
-			query.addElement("feature").attributes["var"] = "jabber:iq:last"
-			query.addElement("feature").attributes["var"] = "jabber:iq:version"
-		
-		# Generic features for both node and component
-		query.addElement("feature").attributes["var"] = "http://jabber.org/protocol/disco#items"
-		query.addElement("feature").attributes["var"] = "http://jabber.org/protocol/disco#info"
-			
-		self.send(iq)
-
-	def getDiscoItems(self, el, fro, ID, node):
-		iq = Element((None, "iq"))
-		iq.attributes["type"] = "result"
-		iq.attributes["from"] = self.config.JID
-		iq.attributes["to"] = fro.full()
-		
-		if ID:
-			iq.attributes["id"] = ID
-		query = iq.addElement("query")
-		query.attributes["xmlns"] = "http://jabber.org/protocol/disco#items"
-		
-		if node:
-			query.attributes["node"] = node
-			
-		if node==None:
-			utils.addDiscoItem(query, self.config.JID, "Commands", 'http://jabber.org/protocol/commands')
-		
-		self.send(iq)
-
-	def sendIqResult(self, to, fro, ID, xmlns):
-		el = Element((None,"iq"))
-		el.attributes["to"] = to
-		el.attributes["from"] = fro
-		if ID:
-			el.attributes["id"] = ID
-			el.attributes["type"] = "result"
-			self.send(el)
-	
-	# TODO: Refactor
-	def sendIqError(self, to, fro, ID, eType, condition, sender = None):
-		el = Element((None, "iq"))
-		el.attributes["to"] = to
-		el.attributes["from"] = fro
-		if ID:
-			el.attributes["id"] = ID
-			el.attributes["type"] = "error"
-			error = el.addElement("error")
-			error.attributes["type"] = eType
-			error.attributes["code"] = str(utils.errorCodeMap[condition])
-			cond = error.addElement(condition)
-			cond.attributes["xmlns"]="urn:ietf:params:xml:ns:xmpp-stanzas"
-			if not sender:
-				sender=self
-			sender.send(el)
 
 	def sendPresenceError(self, to, fro, eType, condition):
 		raise NotImplementedError
