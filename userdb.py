@@ -31,23 +31,6 @@ class User:
 	@token.setter
 	def token(self, value):
 		self.__token = value;
-
-	@property
-	def lastMessageTimestamp(self):
-		try:
-			file = open(self.__userPath() + ".lastmessage", 'r')
-			return float(file.read())
-		except:
-			return 0
-		
-	@lastMessageTimestamp.setter
-	def lastMessageTimestamp(self, value):
-		try:
-			file = open(self.__userPath() + ".lastmessage", 'w')
-			file.write(str(value))
-			file.close()
-		except BaseException as e:
-			raise("Failed to read last message time for user " + self.username) from e
 	
 	def tokenPath(self):
 		return self.__userPath()

@@ -85,7 +85,7 @@ class ClientWrapper:
 	def onConnect(self, initialData):
 		print("Connected!")
 		self.h2x.sendPresence(self.userJID, "available", "Online")
-		
+				
 		self.userList = yield from hangups.build_user_list(self.client, initialData)
 		self.convList = hangups.ConversationList(self.client, initialData.conversation_states, self.userList, initialData.sync_timestamp)
 		self.convList.on_event.add_observer(self.onEvent)
@@ -93,18 +93,7 @@ class ClientWrapper:
 		# Send presence for users on contact list
 		for user in self.userList.get_all():
 			if user.is_self == False:
-				print("Sending rpesence to " + self.hang2JID(user))
 				self.h2x.sendPresence(self.userJID, "available", content = "Present in user list", source = self.hang2JID(user))
-				
-		print("Conversations: ")
-		for c in self.convList.get_all():
-			#print(vars(c))
-			print("> Conversation users:")
-			for u in c.users:
-				print("> > User:")
-				print(vars(u))
-	
-		print("Connection handler end")
 		
 	@asyncio.coroutine
 	def onDisconnect(self):
@@ -119,7 +108,6 @@ class ClientWrapper:
 	
 	def JID2Hang(self, userJID):
 		SUFFIX = "@" + self.h2x.config.JID + "$";
-		print("Suffix: " + SUFFIX)
 		if not re.match(".*" + SUFFIX, userJID):
 			raise Exception(userJID + " is not valid user JID for the transport")
 		userIdParts = re.sub(SUFFIX, "", userJID).split(".")
@@ -130,16 +118,16 @@ class ClientWrapper:
 	def onEvent(self, convEvent):
 		# Chat message
 		if type(convEvent) is hangups.conversation_event.ChatMessageEvent:
+			conv = self.convList.get(convEvent.conversation_id)
 			# Not yet delivered chat message
-			# TODO: Use conversation -> unread events
-			if convEvent.timestamp.timestamp() > self.user.lastMessageTimestamp:
+			if convEvent.timestamp > conv.latest_read_timestamp:
 				# Deliver chat message
-				conv = self.convList.get(convEvent.conversation_id)
 				user = conv.get_user(convEvent.user_id)
 				if not user.is_self:
+					# TODO: message tiestamp for offline delivery
 					self.h2x.sendMessage(self.userJID, self.hang2JID(user), convEvent.text)
-				
-				self.user.lastMessageTimestamp = convEvent.timestamp.timestamp()
+			conv.update_read_timestamp()
+		
 		# TODO: Handle other events
 
 	def sendMessage(self, recipientJID, text):
