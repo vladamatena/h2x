@@ -101,10 +101,11 @@ class ClientWrapper:
             yield from hangups.build_user_conversation_list(self.client)
         )
 		self.convList.on_event.add_observer(self.onEvent)
-				
-#		self.updateParticipantPresence()
+		
+		yield from self.updateParticipantPresence()
 	
-#	def updateParticipantPresence(self):
+	@asyncio.coroutine
+	def updateParticipantPresence(self):
 		# Create list of all participants
 		participants = []
 		for user in self.userList.get_all():
