@@ -98,7 +98,7 @@ class h2xComponent(component.Service):
 		elif presenceType == "unavailable":
 			client.disconnect()
 		elif presenceType == "probe":
-			print("Presence probe not supported")
+			client.sendPresence()
 		elif presenceType == "subscribed":
 			print("Presence type subscribed not supported")
 		elif presenceType == "subscribe":

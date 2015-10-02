@@ -49,7 +49,7 @@ class ClientWrapper:
 			future = asyncio.async(self.client.disconnect(), loop = self.loop)
 			future.add_done_callback(lambda future: print("Disconnect done"))
 			
-			self.h2x.sendPresence(self.userJID, "available", "Client disconnecting")
+			self.sendPresence()
 	
 	def clientBody(self):
 		# Initialize asyncio loop for this thread
@@ -72,7 +72,7 @@ class ClientWrapper:
 		self.client.on_state_update.add_observer(self.onStateUpdate)
 		
 		# Connect and run client
-		self.h2x.sendPresence(self.userJID, "unavailable", "Client connecting...")
+		self.sendPresence()
 		# This will return when connection ends
 		try:
 			print("Running in loop")
@@ -84,7 +84,7 @@ class ClientWrapper:
 		self.state = State.disconnected
 		
 		# Notify about client termination
-		self.h2x.sendPresence(self.userJID, "unavailable", "Client disconnected")
+		self.sendPresence()
 		print("Client thread terminates")
 
 	@asyncio.coroutine
@@ -109,6 +109,17 @@ class ClientWrapper:
 			return True
 		else:
 			return False
+		
+	# Send current presence to jabber client
+	def sendPresence(self):
+		if self.state == State.disconnected:
+			self.h2x.sendPresence(self.userJID, "unavailable", "Client disconnected")
+		elif self.state == State.connecting:
+			self.h2x.sendPresence(self.userJID, "unavailable", "Client connecting...")
+		elif self.state == State.connected:
+			self.h2x.sendPresence(self.userJID, "available", "Client connected")
+		elif self.state == State.disconnecting:
+			self.h2x.sendPresence(self.userJID, "available", "Client disconnecting...")
 		
 	@asyncio.coroutine
 	def onDisconnect(self):
