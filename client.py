@@ -45,6 +45,8 @@ class ClientWrapper:
 		if self.state == State.connected:
 			self.state == State.disconnecting
 			print("Disconnect!!!")
+			
+			self.sendPresence()
 		
 			future = asyncio.async(self.client.disconnect(), loop = self.loop)
 			future.add_done_callback(lambda future: print("Disconnect done"))
@@ -88,13 +90,14 @@ class ClientWrapper:
 		print("Client thread terminates")
 
 	@asyncio.coroutine
-	def onConnect(self, initialData):
+	def onConnect(self):
 		print("Connected!")
 		self.state = State.connected
 		self.h2x.sendPresence(self.userJID, "available", "Online")
-				
-		self.userList = yield from hangups.build_user_list(self.client, initialData)
-		self.convList = hangups.ConversationList(self.client, initialData.conversation_states, self.userList, initialData.sync_timestamp)
+		
+		self.userList, self.convList = (
+            yield from hangups.build_user_conversation_list(self.client)
+        )
 		self.convList.on_event.add_observer(self.onEvent)
 		
 		# Send presence for users on contact list
