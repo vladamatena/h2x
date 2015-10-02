@@ -6,6 +6,8 @@ import time
 import asyncio
 import re
 import threading
+import itertools
+
 from enum import Enum
 
 # Client connection state
@@ -103,7 +105,37 @@ class ClientWrapper:
 		# Send presence for users on contact list
 		for user in self.userList.get_all():
 			if user.is_self == False:
+				xxx = user.id_
 				self.h2x.sendPresence(self.userJID, "available", content = "Present in user list", source = self.hang2JID(user))
+		
+		
+		# Create list of all participants
+		participants = []
+		for user in self.userList.get_all():
+			if user.is_self == False:
+				participant = hangups.hangouts_pb2.ParticipantId(
+					gaia_id = user.id_.gaia_id,
+					chat_id = user.id_.chat_id
+				)
+				participants.append(participant)
+		
+		# Create presence request
+		req = hangups.hangouts_pb2.QueryPresenceRequest(
+			participant_id = iter(participants),
+			field_mask = iter([1, 2, 7]) # All fields (reachable, available, device)
+		)
+		
+		# Send the request
+		resp = yield from asyncio.async(self.client.query_presence(req), loop = self.loop)
+		
+		# Process presence from result
+		pres = resp.presence_result
+		for p in pres:
+			print(type(p.user_id))
+			print(p.user_id)
+			print(type(p.presence))
+			print(p.presence)
+		
 				
 	# Check if uses is in contact list
 	def isSubscribed(self, jid):
