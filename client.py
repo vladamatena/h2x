@@ -134,18 +134,12 @@ class ClientWrapper:
 		# Pick the coversation with the recipient user only
 		conversation = None
 		userId = self.JID2Hang(recipientJID)
-		print(vars(userId))
-		print("Inspecting conversations: ")
 		for c in self.convList.get_all():
-			print(vars(c))
 			if len(c.users) == 2:
-				print("Has 2 users")
 				for u in c.users:
-					print(vars(u))
 					if u.id_.__dict__ == userId.__dict__:
-						print("MATCHES")
 						conversation = c
-						
+
 		if conversation == None:
 			raise "No conversation found for the recipient"
 		
