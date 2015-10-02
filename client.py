@@ -101,6 +101,14 @@ class ClientWrapper:
 		for user in self.userList.get_all():
 			if user.is_self == False:
 				self.h2x.sendPresence(self.userJID, "available", content = "Present in user list", source = self.hang2JID(user))
+				
+	# Check if uses is in contact list
+	def isSubscribed(self, jid):
+		user = self.JID2Hang(jid)
+		if self.userList.get_user(user):
+			return True
+		else:
+			return False
 		
 	@asyncio.coroutine
 	def onDisconnect(self):

@@ -24,7 +24,7 @@ class h2xComponent(component.Service):
 		self.iq = Iq(self)
 		
 		self.clients = {}
-
+		
 	def componentConnected(self, xs):
 		self.xmlstream = xs
 		
@@ -76,17 +76,21 @@ class h2xComponent(component.Service):
 			self.sendPresenceError(to = sender, fro = to, eType="auth", condition="registration-required")
 			return
 		
-		print("Presence:")
-		print("> From: " + sender.full())
-		print("> To: " + to)
-		print("> Type: " + presenceType)
+		print("Presence: " + sender.full() + " -> " + to + " : " + presenceType)
 
 		# Service component presence
 		if to == self.config.JID:
-			self.componentPresence(el, sender, presenceType, user)
+			self.componentPresence(el, sender, presenceType, user, to)
 			return
+		
+		# Subscription request
+		if presenceType == "subscribe":
+			if self.getClient(user).isSubscribed(to):
+				self.sendPresence(sender.full(), "subscribed", source = to)
+			else:
+				self.sendPresence(sender.full(), "unsubscribed", source = to)
 
-	def componentPresence(self, el, sender, presenceType, user):
+	def componentPresence(self, el, sender, presenceType, user, to):
 		client = self.ensureClient(user, sender)
 		
 		if presenceType == "available":
@@ -97,6 +101,8 @@ class h2xComponent(component.Service):
 			print("Presence probe not supported")
 		elif presenceType == "subscribed":
 			print("Presence type subscribed not supported")
+		elif presenceType == "subscribe":
+			self.sendPresence(sender.full(), "subscribed", source = to)
 		else:
 			raise NotImplementedError("Presence type: " + presenceType)
 	
@@ -112,14 +118,17 @@ class h2xComponent(component.Service):
 			presence.addElement('status').addContent(content)
 		self.send(presence)
 	
+	def getClient(self, user):
+		return self.clients[user.username]
+	
 	# Ensures existence of client wrapper for particular user
 	# Client wrapper is returned
 	def ensureClient(self, user, sender):
 		try:
-			return self.clients[user.username]
+			return self.getClient(user)
 		except:
 			self.clients[user.username] = ClientWrapper(self, user, sender.full())
-			return self.clients[user.username]
+			return self.getClient(user)
 		
 	# Send message
 	def sendMessage(self, to, fro, text, messageType = "chat"):
