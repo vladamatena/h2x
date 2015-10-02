@@ -113,7 +113,6 @@ class ClientWrapper:
 	@asyncio.coroutine
 	def onStateUpdate(self, state):
 		print("StateUpdate")
-		print(vars(state))
 		
 	def hang2JID(self, hangUser):
 		return hangUser.id_.chat_id + "." + hangUser.id_.gaia_id + "@" + self.h2x.config.JID

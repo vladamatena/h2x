@@ -28,6 +28,31 @@ class Form:
 		if required:
 			textBox.addElement("required")
 
+ERROR_CODE_MAP = {
+	"bad-request"				: 400,
+	"conflict"					: 409,
+	"feature-not-implemented"	: 501,
+	"forbidden"					: 403,
+	"gone"						: 302,
+	"internal-server-error"		: 500,
+	"item-not-found"			: 404,
+	"jid-malformed"				: 400,
+	"not-acceptable"			: 406,
+	"not-allowed"				: 405,
+	"not-authorized"			: 401,
+	"payment-required"			: 402,
+	"recipient-unavailable"		: 404,
+	"redirect"					: 302,
+	"registration-required"		: 407,
+	"remote-server-not-found"	: 404,
+	"remote-server-timeout"		: 504,
+	"resource-constraint"		: 500,
+	"service-unavailable"		: 503,
+	"subscription-required"		: 407,
+	"undefined-condition"		: 500,
+	"unexpected-request"		: 400
+}
+
 # Inteligent query handling
 class Iq:
 	def __init__(self, h2x):
@@ -168,7 +193,7 @@ class Iq:
 			el.attributes["type"] = "error"
 			error = el.addElement("error")
 			error.attributes["type"] = eType
-			error.attributes["code"] = str(utils.errorCodeMap[condition])
+			error.attributes["code"] = str(ERROR_CODE_MAP[condition])
 			cond = error.addElement(condition)
 			cond.attributes["xmlns"] = "urn:ietf:params:xml:ns:xmpp-stanzas"
 			if not sender:
