@@ -6,13 +6,23 @@ import time
 import asyncio
 import re
 import threading
+from enum import Enum
 
+# Client connection state
+class State(Enum):
+	disconnected = 0
+	connecting = 1
+	connected = 2
+	disconnecting = 3
 
+# Wapper for single hangouts client
 class ClientWrapper:
 	def __init__(self, h2x, user, userJID):
 		self.h2x = h2x
 		self.user = user
 		self.userJID = userJID
+		
+		self.state = State.disconnected
 		
 		self.thread = None
 		self.loop = None
@@ -25,28 +35,21 @@ class ClientWrapper:
 		return self.user.token
 		
 	def connect(self):
-		print("Connect!!!")
-		self.disconnect()
-		
-		self.thread = threading.Thread(target = self.clientBody)
-		self.thread.start()
+		if self.state == State.disconnected:
+			self.state = State.connecting
+			print("Connect!!!")
+			self.thread = threading.Thread(target = self.clientBody)
+			self.thread.start()
 	
 	def disconnect(self):
-		print("Disconnect!!!")
+		if self.state == State.connected:
+			self.state == State.disconnecting
+			print("Disconnect!!!")
 		
-		if self.thread != None:
-			print("Stopping client thread")
-			
 			future = asyncio.async(self.client.disconnect(), loop = self.loop)
 			future.add_done_callback(lambda future: print("Disconnect done"))
-	
-			print("Trashing references")
-			self.thread = None
-			self.loop = None
-				
-		self.h2x.sendPresence(self.userJID, "unavailable", "Client disconnected")
-		
-		print("Disconnect done")
+			
+			self.h2x.sendPresence(self.userJID, "available", "Client disconnecting")
 	
 	def clientBody(self):
 		# Initialize asyncio loop for this thread
@@ -66,6 +69,7 @@ class ClientWrapper:
 		self.client.on_connect.add_observer(self.onConnect)
 		self.client.on_disconnect.add_observer(self.onDisconnect)
 		self.client.on_reconnect.add_observer(self.onReconnect)
+		self.client.on_state_update.add_observer(self.onStateUpdate)
 		
 		# Connect and run client
 		self.h2x.sendPresence(self.userJID, "unavailable", "Client connecting...")
@@ -77,6 +81,8 @@ class ClientWrapper:
 		finally:
 			loop.close()
 		
+		self.state = State.disconnected
+		
 		# Notify about client termination
 		self.h2x.sendPresence(self.userJID, "unavailable", "Client disconnected")
 		print("Client thread terminates")
@@ -84,6 +90,7 @@ class ClientWrapper:
 	@asyncio.coroutine
 	def onConnect(self, initialData):
 		print("Connected!")
+		self.state = State.connected
 		self.h2x.sendPresence(self.userJID, "available", "Online")
 				
 		self.userList = yield from hangups.build_user_list(self.client, initialData)
@@ -102,6 +109,11 @@ class ClientWrapper:
 	@asyncio.coroutine
 	def onReconnect(self):
 		print("Reconnected")
+		
+	@asyncio.coroutine
+	def onStateUpdate(self, state):
+		print("StateUpdate")
+		print(vars(state))
 		
 	def hang2JID(self, hangUser):
 		return hangUser.id_.chat_id + "." + hangUser.id_.gaia_id + "@" + self.h2x.config.JID
