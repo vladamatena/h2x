@@ -120,6 +120,14 @@ class ClientWrapper:
 			self.h2x.sendPresence(self.userJID, "available", "Client connected")
 		elif self.state == State.disconnecting:
 			self.h2x.sendPresence(self.userJID, "available", "Client disconnecting...")
+			
+	# Import Hangouts contacts to jabber
+	def importContacts(self):
+		print("Importing contacts")
+		
+		for user in self.userList.get_all():
+			if user.is_self == False:
+				self.h2x.sendPresence(self.userJID, "subscribe", content = "Present in your hangouts contact list", source = self.hang2JID(user))
 		
 	@asyncio.coroutine
 	def onDisconnect(self):

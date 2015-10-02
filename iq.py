@@ -3,6 +3,8 @@ from twisted.words.protocols.jabber.jid import internJID, JID
 from twisted.words.xish.domish import Element
 import hangups
 
+from userdb import User
+
 # Builder for form element
 class Form:
 	# Creates form
@@ -95,6 +97,10 @@ class Iq:
 			if xmlns == "jabber:iq:register" and iqType == "set":
 				self.__setRegister(el, fro, ID)
 				return
+			
+			if xmlns == "http://jabber.org/protocol/commands" and query.name=="command" and iqType=="set":
+				self.__command(query, fro, ID, node)
+				return
 
 			self.__sendIqError(to = fro.full(), fro = self.h2x.config.JID, ID = ID, eType = "cancel", condition = "feature-not-implemented")
 
@@ -153,6 +159,7 @@ class Iq:
 			query.addElement("feature").attributes["var"] = "jabber:iq:register"
 			
 		# Generic features for both node and component
+		query.addElement("feature").attributes["var"] = "http://jabber.org/protocol/commands"
 		query.addElement("feature").attributes["var"] = "http://jabber.org/protocol/disco#items"
 		query.addElement("feature").attributes["var"] = "http://jabber.org/protocol/disco#info"
 			
@@ -171,8 +178,27 @@ class Iq:
 		
 		if node:
 			query.attributes["node"] = node
+			
+		if node == None:
+			self.__addDiscoItem(query, self.h2x.config.JID, "Commands", 'http://jabber.org/protocol/commands')
+		if node == "http://jabber.org/protocol/commands":
+			self.__addDiscoItem(query, self.h2x.config.JID, "Import contacts from Hangouts", "import_contacts")
 		
 		self.h2x.send(iq)
+		
+	def __addDiscoItem(self, query, jid, name = None, node = None):
+		item = query.addElement("item")
+		item.attributes["jid"] = jid
+		if name:
+			item.attributes["name"] = name
+		if node:
+			item.attributes["node"] = node
+		return item
+	
+	def __command(self, query, fro, ID, node):
+		if node == "import_contacts":
+			user = User(fro.userhostJID().full())
+			self.h2x.getClient(user).importContacts()
 
 	def __sendIqResult(self, to, fro, ID, xmlns):
 		el = Element((None,"iq"))
