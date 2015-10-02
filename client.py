@@ -101,14 +101,10 @@ class ClientWrapper:
             yield from hangups.build_user_conversation_list(self.client)
         )
 		self.convList.on_event.add_observer(self.onEvent)
-		
-		# Send presence for users on contact list
-		for user in self.userList.get_all():
-			if user.is_self == False:
-				xxx = user.id_
-				self.h2x.sendPresence(self.userJID, "available", content = "Present in user list", source = self.hang2JID(user))
-		
-		
+				
+#		self.updateParticipantPresence()
+	
+#	def updateParticipantPresence(self):
 		# Create list of all participants
 		participants = []
 		for user in self.userList.get_all():
@@ -129,12 +125,22 @@ class ClientWrapper:
 		resp = yield from asyncio.async(self.client.query_presence(req), loop = self.loop)
 		
 		# Process presence from result
-		pres = resp.presence_result
-		for p in pres:
-			print(type(p.user_id))
-			print(p.user_id)
-			print(type(p.presence))
-			print(p.presence)
+		presences = resp.presence_result
+		for presence in presences:
+			if presence.presence.reachable:
+				state = "available"
+			else:
+				state = "unavailable"
+			
+			if not presence.presence.reachable:
+				content = "Offline"
+			else:
+				if presence.presence.available:
+					content = "Online"
+				else:
+					content = "Reachable"
+		
+			self.h2x.sendPresence(self.userJID, state, content = content, source = self.participant2JID(presence.user_id))
 		
 				
 	# Check if uses is in contact list
@@ -175,10 +181,16 @@ class ClientWrapper:
 	@asyncio.coroutine
 	def onStateUpdate(self, state):
 		print("StateUpdate")
+	
+	def ids2JID(self, chat_id, gaia_id):
+		return chat_id + "." + gaia_id + "@" + self.h2x.config.JID
+	
+	def participant2JID(self, participant):
+		return self.ids2JID(participant.chat_id, participant.gaia_id)
 		
 	def hang2JID(self, hangUser):
-		return hangUser.id_.chat_id + "." + hangUser.id_.gaia_id + "@" + self.h2x.config.JID
-	
+		return self.ids2JID(hangUser.id_.chat_id, hangUser.id_.gaia_id)
+		
 	def JID2Hang(self, userJID):
 		SUFFIX = "@" + self.h2x.config.JID + "$";
 		if not re.match(".*" + SUFFIX, userJID):
