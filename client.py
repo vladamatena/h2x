@@ -182,6 +182,8 @@ class ClientWrapper:
 	@asyncio.coroutine
 	def onStateUpdate(self, state):
 		print("StateUpdate")
+		# TODO: This is stupid but works, we would like to update only changed presence
+		yield from self.updateParticipantPresence()
 	
 	def ids2JID(self, chat_id, gaia_id):
 		return chat_id + "." + gaia_id + "@" + self.h2x.config.JID
