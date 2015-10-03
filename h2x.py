@@ -133,8 +133,11 @@ class h2xComponent(component.Service):
 		print("PresenceSend: " + source + " -> " + destination + " : " + presenceType)
 		self.send(presence)
 	
+	def getClientByJID(self, jid):
+		return self.clients[jid]
+	
 	def getClient(self, user):
-		return self.clients[user.username]
+		return self.getClientByJID(user.username)
 	
 	# Ensures existence of client wrapper for particular user
 	# Client wrapper is returned

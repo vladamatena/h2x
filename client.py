@@ -159,7 +159,11 @@ class ClientWrapper:
 			self.h2x.sendPresence(self.userJID, "available", "Client connected")
 		elif self.state == State.disconnecting:
 			self.h2x.sendPresence(self.userJID, "available", "Client disconnecting...")
-			
+	
+	def getUser(self, jid):
+		uid = self.JID2Hang(jid) 
+		return self.userList.get_user(uid)
+		
 	# Import Hangouts contacts to jabber
 	def importContacts(self):
 		print("Importing contacts")

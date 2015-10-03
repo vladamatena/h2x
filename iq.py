@@ -71,6 +71,8 @@ class Iq:
 		except Exception as e:
 			return
 		
+		print("IqReceived " + fro.full() + " -> " + to.full() + ": " + iqType)
+		
 		# Process component iq
 		if to.full() == self.h2x.config.JID:
 			self.componentIq(el, fro, ID, iqType)
@@ -78,10 +80,10 @@ class Iq:
 		
 		# Process user iq
 		if self.h2x.isHangUser(to.userhost()):
-			self.userIq(el, fro, ID, iqType)
+			self.userIq(el, fro, to, ID, iqType)
 			return
 		
-		# FIXME: Is this needed ???
+		# TODO: Can we send something like wrong request?
 		self.__sendIqError(to = fro.full(), fro = to.full(), ID = ID, eType = "cancel", condition = "service-unavailable")
 		
 	def componentIq(self, el, fro, ID, iqType):
@@ -105,31 +107,31 @@ class Iq:
 				self.__setRegister(el, fro, ID)
 				return
 			
-			if xmlns == "jabber:iq:version" and iqType == "get":
-				self.getVersion(fro,ID)
-				return
-			
 			if xmlns == "http://jabber.org/protocol/commands" and query.name=="command" and iqType=="set":
 				self.__command(query, fro, ID, node)
 				return
 
 			self.__sendIqError(to = fro.full(), fro = self.h2x.config.JID, ID = ID, eType = "cancel", condition = "feature-not-implemented")
 			
-	def userIq(self, el, fro, ID, iqType):
+	def userIq(self, el, fro, to, ID, iqType):
 		for query in el.elements():
 			xmlns = query.uri
 			node = query.getAttribute("node")
 			
 			if xmlns == "jabber:iq:version" and iqType == "get":
-				self.__getVersion(fro, ID)
+				self.__getVersion(fro, to, ID)
+				return
+			
+			if xmlns == "vcard-temp" and iqType == "get" and query.name == "vCard":
+				self.__getVCard(fro, to, ID)
 				return
 			
 			self.__sendIqError(to = fro.full(), fro = self.h2x.config.JID, ID = ID, eType = "cancel", condition = "feature-not-implemented")
 	
-	def __getVersion(self,fro,ID):
+	def __getVersion(self, fro, to, ID):
 		iq = Element((None,"iq"))
 		iq.attributes["type"] = "result"
-		iq.attributes["from"] = self.h2x.config.JID
+		iq.attributes["from"] = to.full()
 		iq.attributes["to"] = fro.full()
 		if ID:
 			iq.attributes["id"] = ID
@@ -137,6 +139,27 @@ class Iq:
 		query.attributes["xmlns"] = "jabber:iq:version"
 		query.addElement("name", content = "h2x transport")
 		query.addElement("version", content = 0)
+		self.h2x.send(iq)
+		
+	def __getVCard(self, fro, to, ID):
+		iq = Element((None, "iq"))
+		iq.attributes["type"] = "result"
+		iq.attributes["from"] = to.full()
+		iq.attributes["to"] = fro.full()
+		if ID:
+			iq.attributes["id"] = ID
+		vcard = iq.addElement("vCard")
+		vcard.attributes["xmlns"] = "vcard-temp"
+
+		userInfo = self.h2x.getClientByJID(fro.userhost()).getUser(to.userhost())
+
+		# TODO: Get more user info
+		vcard.addElement("FN", content = userInfo.full_name)
+		vcard.addElement("NICKNAME", content = userInfo.full_name)
+		emails = vcard.addElement("EMAIL")
+		for email in userInfo.emails:
+			emails.addElement("USERID", content = email)
+
 		self.h2x.send(iq)
 
 	def __getRegister(self, el, fro, ID):
