@@ -170,7 +170,7 @@ class ClientWrapper:
 		
 		for user in self.userList.get_all():
 			if user.is_self == False:
-				self.h2x.sendPresence(self.userJID, "subscribe", status = "Present in your hangouts contact list", source = self.hang2JID(user))
+				self.h2x.sendPresence(self.userJID, "subscribe", source = self.hang2JID(user), nick = user.full_name)
 		
 	@asyncio.coroutine
 	def onDisconnect(self):

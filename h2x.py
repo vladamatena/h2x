@@ -117,7 +117,7 @@ class h2xComponent(component.Service):
 			raise NotImplementedError("Presence type: " + presenceType)
 	
 	# Send presence
-	def sendPresence(self, destination, presenceType, status = None, show = None, priority = None,source = None):
+	def sendPresence(self, destination, presenceType, status = None, show = None, priority = None, source = None, nick = None):
 		if not source:
 			source = self.config.JID
 		presence = Element((None,'presence'))
@@ -130,6 +130,9 @@ class h2xComponent(component.Service):
 			presence.addElement('show').addContent(show)
 		if priority:
 			presence.addElement('priority').addContent(priority)
+		if nick:
+			nickElement = presence.addElement('nick', content = nick)
+			nickElement.attributes["xmlns"] = "http://jabber.org/protocol/nick"
 		print("PresenceSend: " + source + " -> " + destination + " : " + presenceType)
 		self.send(presence)
 	
