@@ -69,7 +69,7 @@ class h2xComponent(component.Service):
 		
 		
 		# Check user is registered
-		user = User(sender.userhostJID().full())
+		user = User(sender.userhost())
 		try:
 			user.token
 		except Exception as e:
