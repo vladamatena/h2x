@@ -102,7 +102,10 @@ class h2xComponent(component.Service):
 			if not self.xmppClients:
 				client.connect()
 			else:
+				# Tell the client we are online
 				self.sendPresence(sender.full(), "available")
+				if client.loop:
+					asyncio.async(client.updateParticipantPresence(), loop = client.loop)
 			self.xmppClients.add(sender)
 		elif presenceType == "unavailable":
 			self.xmppClients.discard(sender)
@@ -118,7 +121,7 @@ class h2xComponent(component.Service):
 			self.sendPresence(sender.full(), "subscribed", source = to)
 		else:
 			raise NotImplementedError("Presence type: " + presenceType)
-	
+
 	# Send presence
 	def sendPresence(self, destination, presenceType, status = None, show = None, priority = None, source = None, nick = None):
 		if not source:
