@@ -70,8 +70,15 @@ class Iq:
 			to = internJID(to)
 		except Exception as e:
 			return
+		
+		# Process component iq
 		if to.full() == self.h2x.config.JID:
 			self.componentIq(el, fro, ID, iqType)
+			return
+		
+		# Process user iq
+		if self.h2x.isHangUser(to.userhost()):
+			self.userIq(el, fro, ID, iqType)
 			return
 		
 		# FIXME: Is this needed ???
@@ -98,11 +105,39 @@ class Iq:
 				self.__setRegister(el, fro, ID)
 				return
 			
+			if xmlns == "jabber:iq:version" and iqType == "get":
+				self.getVersion(fro,ID)
+				return
+			
 			if xmlns == "http://jabber.org/protocol/commands" and query.name=="command" and iqType=="set":
 				self.__command(query, fro, ID, node)
 				return
 
 			self.__sendIqError(to = fro.full(), fro = self.h2x.config.JID, ID = ID, eType = "cancel", condition = "feature-not-implemented")
+			
+	def userIq(self, el, fro, ID, iqType):
+		for query in el.elements():
+			xmlns = query.uri
+			node = query.getAttribute("node")
+			
+			if xmlns == "jabber:iq:version" and iqType == "get":
+				self.__getVersion(fro, ID)
+				return
+			
+			self.__sendIqError(to = fro.full(), fro = self.h2x.config.JID, ID = ID, eType = "cancel", condition = "feature-not-implemented")
+	
+	def __getVersion(self,fro,ID):
+		iq = Element((None,"iq"))
+		iq.attributes["type"] = "result"
+		iq.attributes["from"] = self.h2x.config.JID
+		iq.attributes["to"] = fro.full()
+		if ID:
+			iq.attributes["id"] = ID
+		query = iq.addElement("query")
+		query.attributes["xmlns"] = "jabber:iq:version"
+		query.addElement("name", content = "h2x transport")
+		query.addElement("version", content = 0)
+		self.h2x.send(iq)
 
 	def __getRegister(self, el, fro, ID):
 		iq = Element((None,"iq"))
@@ -157,6 +192,7 @@ class Iq:
 			identity.attributes["type"] = "XMPP"
 			query.addElement("feature").attributes["var"] = "jabber:iq:gateway"
 			query.addElement("feature").attributes["var"] = "jabber:iq:register"
+			query.addElement("feature").attributes["var"] = "jabber:iq:version"
 			
 		# Generic features for both node and component
 		query.addElement("feature").attributes["var"] = "http://jabber.org/protocol/commands"

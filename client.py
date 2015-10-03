@@ -192,10 +192,9 @@ class ClientWrapper:
 		return self.ids2JID(hangUser.id_.chat_id, hangUser.id_.gaia_id)
 		
 	def JID2Hang(self, userJID):
-		SUFFIX = "@" + self.h2x.config.JID + "$";
-		if not re.match(".*" + SUFFIX, userJID):
+		if not self.h2x.isHangUser(userJID):
 			raise Exception(userJID + " is not valid user JID for the transport")
-		userIdParts = re.sub(SUFFIX, "", userJID).split(".")
+		userIdParts = re.sub(self.h2x.SUFFIX, "", userJID).split(".")
 		userChatId = userIdParts[0]
 		userGaiaId = userIdParts[1]
 		return hangups.user.UserID(userChatId, userGaiaId)

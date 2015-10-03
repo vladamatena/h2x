@@ -1,6 +1,8 @@
 import sys
 import time
 import asyncio
+import re
+from xml.sax.saxutils import escape
 from pprint import pprint
 
 from twisted.internet import reactor
@@ -9,12 +11,9 @@ from twisted.words.xish.domish import Element
 from twisted.words.protocols.jabber import xmlstream, client, jid, component
 from twisted.words.protocols.jabber.jid import internJID, JID
 
-from xml.sax.saxutils import escape
-
 import hangups
 
 from iq import Iq
-
 from userdb import User
 from client import ClientWrapper
 
@@ -167,6 +166,12 @@ class h2xComponent(component.Service):
 		# Store user in db
 		User(username).token = token
 		
+	@property
+	def SUFFIX(self):
+		return "@" + self.config.JID + "$";
+	
+	def isHangUser(self, jid):
+		return re.match(".*" + self.SUFFIX, jid)
 
 	def sendPresenceError(self, to, fro, eType, condition):
 		raise NotImplementedError
