@@ -87,8 +87,11 @@ class h2xComponent(component.Service):
 		
 		# Subscription request
 		if presenceType == "subscribe":
-			if self.getClient(user).isSubscribed(to):
+			client = self.getClient(user)
+			if client.isSubscribed(to):
 				self.sendPresence(sender.full(), "subscribed", source = to)
+				if client.loop:
+					asyncio.async(client.updateParticipantPresence(), loop = client.loop)
 			else:
 				self.sendPresence(sender.full(), "unsubscribed", source = to)
 

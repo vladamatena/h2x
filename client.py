@@ -106,6 +106,7 @@ class ClientWrapper:
 	
 	@asyncio.coroutine
 	def updateParticipantPresence(self):
+		print("Sending presence for hangouts users")
 		# Create list of all participants
 		participants = []
 		for user in self.userList.get_all():
