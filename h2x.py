@@ -79,7 +79,7 @@ class h2xComponent(component.Service):
 			self.sendPresenceError(to = sender, fro = to, eType="auth", condition="registration-required")
 			return
 		
-		print("Presence: " + sender.full() + " -> " + to + " : " + presenceType)
+		print("PresenceReceived: " + sender.full() + " -> " + to + " : " + presenceType)
 
 		# Service component presence
 		if to == self.config.JID:
