@@ -1,6 +1,7 @@
 import sys
 import time
 import asyncio
+from pprint import pprint
 
 from twisted.internet import reactor
 from twisted.words.xish import domish,xpath
@@ -48,7 +49,7 @@ class h2xComponent(component.Service):
 			return
 		
 		if msgType == "chat":
-			user = User(sender.userhostJID().full())
+			user = User(sender.userhost())
 			self.clients[user.username].sendMessage(recipient, text)
 		else:
 			raise NotImplementedError
@@ -116,6 +117,7 @@ class h2xComponent(component.Service):
 		presence.attributes['type'] = presenceType
 		if content:
 			presence.addElement('status').addContent(content)
+		print("PresenceSend: " + source + " -> " + destination + " : " + presenceType)
 		self.send(presence)
 	
 	def getClient(self, user):
@@ -127,7 +129,7 @@ class h2xComponent(component.Service):
 		try:
 			return self.getClient(user)
 		except:
-			self.clients[user.username] = ClientWrapper(self, user, sender.full())
+			self.clients[user.username] = ClientWrapper(self, user, sender.userhost())
 			return self.getClient(user)
 		
 	# Send message
