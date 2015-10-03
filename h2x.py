@@ -26,6 +26,8 @@ class h2xComponent(component.Service):
 		
 		self.clients = {}
 		
+		self.xmppClients = set()
+		
 	def componentConnected(self, xs):
 		self.xmlstream = xs
 		
@@ -95,9 +97,17 @@ class h2xComponent(component.Service):
 		client = self.ensureClient(user, sender)
 		
 		if presenceType == "available":
-			client.connect()
+			if not self.xmppClients:
+				client.connect()
+			else:
+				self.sendPresence(sender.full(), "available")
+			self.xmppClients.add(sender)
 		elif presenceType == "unavailable":
-			client.disconnect()
+			self.xmppClients.discard(sender)
+			if not self.xmppClients:
+				client.disconnect()
+			else:
+				self.sendPresence(sender.full(), "unavailable")
 		elif presenceType == "probe":
 			client.sendPresence()
 		elif presenceType == "subscribed":
