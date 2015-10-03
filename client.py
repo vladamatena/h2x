@@ -133,15 +133,12 @@ class ClientWrapper:
 			else:
 				state = "unavailable"
 			
-			if not presence.presence.reachable:
-				content = "Offline"
+			if presence.presence.available:
+				show = "xa"
 			else:
-				if presence.presence.available:
-					content = "Online"
-				else:
-					content = "Reachable"
+				show = None
 		
-			self.h2x.sendPresence(self.userJID, state, content = content, source = self.participant2JID(presence.user_id))
+			self.h2x.sendPresence(self.userJID, state, source = self.participant2JID(presence.user_id), show = show)
 		
 				
 	# Check if uses is in contact list
@@ -169,7 +166,7 @@ class ClientWrapper:
 		
 		for user in self.userList.get_all():
 			if user.is_self == False:
-				self.h2x.sendPresence(self.userJID, "subscribe", content = "Present in your hangouts contact list", source = self.hang2JID(user))
+				self.h2x.sendPresence(self.userJID, "subscribe", status = "Present in your hangouts contact list", source = self.hang2JID(user))
 		
 	@asyncio.coroutine
 	def onDisconnect(self):

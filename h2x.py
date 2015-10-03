@@ -118,15 +118,19 @@ class h2xComponent(component.Service):
 			raise NotImplementedError("Presence type: " + presenceType)
 	
 	# Send presence
-	def sendPresence(self, destination, presenceType, content = None, source = None):
+	def sendPresence(self, destination, presenceType, status = None, show = None, priority = None,source = None):
 		if not source:
 			source = self.config.JID
 		presence = Element((None,'presence'))
 		presence.attributes['to'] = destination
 		presence.attributes['from'] = source
 		presence.attributes['type'] = presenceType
-		if content:
-			presence.addElement('status').addContent(content)
+		if status:
+			presence.addElement('status').addContent(status)
+		if show:
+			presence.addElement('show').addContent(show)
+		if priority:
+			presence.addElement('priority').addContent(priority)
 		print("PresenceSend: " + source + " -> " + destination + " : " + presenceType)
 		self.send(presence)
 	
