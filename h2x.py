@@ -64,7 +64,8 @@ class h2xComponent(component.Service):
 										   condition="registration-required")
 					return
 			else:
-				print("Operation on client which has not yet send available presence !!!")
+				print("Operation on client which has not yet send available presence !!! (responding as if we are not available)")
+				self.sendPresence(sender, "unavailable")
 				return
 
 		# Service component presence
