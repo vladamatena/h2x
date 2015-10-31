@@ -30,7 +30,7 @@ class ClientWrapper:
 		self.loop = None
 		
 		self.h2x.sendPresence(self.userJID, "unavailable", "Client wrapper created")
-	
+
 	# Provides token if refresh fails
 	# Would be nice to ask user for token
 	def getToken(self):
