@@ -8,6 +8,8 @@ from twisted.words.protocols.jabber.jid import JID
 from iq import Iq
 from userdb import User
 from client import ClientWrapper
+from client import UserNotRegistered
+
 
 class h2xComponent(component.Service):
 	def __init__(self, reactor, config):
@@ -19,9 +21,6 @@ class h2xComponent(component.Service):
 		# As hash map user@jabber.org -> ClientWrapper
 		self.__clients = {}
 
-		# Track connected instances of XMPP clients, for presence control
-		self.xmppClients = set()
-		
 	def componentConnected(self, xs):
 		self.xmlstream = xs
 		
@@ -43,82 +42,50 @@ class h2xComponent(component.Service):
 		else:
 			raise NotImplementedError
 
-	def onPresence(self, el):
-		sender = JID(el.getAttribute("from"))
-		recipient = JID(el.getAttribute("to"))
-		presenceType = el.getAttribute("type")
+	def onPresence(self, element):
+		sender = JID(element.getAttribute("from"))
+		recipient = JID(element.getAttribute("to"))
+		presenceType = element.getAttribute("type")
 		if not presenceType:
 			presenceType = "available"
 
-		# Check user is registered
-		user = User(sender.userhost())
-		try:
-			user.token
-		except Exception as e:
-			print(e)
-			self.sendPresenceError(to = sender, fro = recipient, eType="auth", condition="registration-required")
-			return
-		
 		print("PresenceReceived: " + sender.full() + " -> " + recipient.full() + " : " + presenceType)
+
+		# Create client instance on available from XMPP client
+		if self.getClient(sender) is None and presenceType == "available":
+			try:
+				self.addClient(ClientWrapper(self, sender))
+			except UserNotRegistered as e:
+				print(e)
+				self.sendPresenceError(to = sender, fro = recipient, eType="auth", condition="registration-required")
+				return
 
 		# Service component presence
 		if recipient == JID(self.config.JID):
-			self.onComponentPresence(el, sender, presenceType, user, recipient)
-			return
-		
-		# Subscription request
-		if presenceType == "subscribe":
-			client = self.getClient(sender)
-			if client.isSubscribed(recipient):
-				self.sendPresence(sender.full(), "subscribed", source = recipient)
-				if client.loop:
-					asyncio.async(client.updateParticipantPresence(), loop = client.loop)
-			else:
-				self.sendPresence(sender.full(), "unsubscribed", source = recipient)
+			self.getClient(sender).processComponentPresence(sender, presenceType, recipient)
 
-	def onComponentPresence(self, el, sender, presenceType, user, to):
-		client = self.ensureClient(sender)
-		
-		if presenceType == "available":
-			if not self.xmppClients:
-				client.connect()
-			else:
-				# Tell the client we are online
-				self.sendPresence(sender.full(), "available")
-				if client.loop:
-					asyncio.async(client.updateParticipantPresence(), loop = client.loop)
-			self.xmppClients.add(sender)
-		elif presenceType == "unavailable":
-			self.xmppClients.discard(sender)
-			if not self.xmppClients:
-				client.disconnect()
-			else:
-				self.sendPresence(sender.full(), "unavailable")
-		elif presenceType == "probe":
-			client.sendPresence()
-		elif presenceType == "subscribed":
-			print("Presence type subscribed not supported")
+		# Subscription request
 		elif presenceType == "subscribe":
-			self.sendPresence(sender.full(), "subscribed", source = to)
+			self.getClient(sender).processSubscription(recipient)
+
+		# Presence to Hangouts user
+		elif self.isHangUser(recipient):
+			self.getClient(sender).processPresence(recipient, presenceType)
+
+		# Unimplemented feature
 		else:
-			raise NotImplementedError("Presence type: " + presenceType)
+			raise NotImplemented(element)
 
 	# Get hangups client by JID instance
 	def getClient(self, jid):
-		return self.__clients[jid.userhost()];
+		try:
+			return self.__clients[jid.userhost()]
+		except:
+			return None
 
 	# Add new client to client map
-	def addClient(self, jid, client):
-		self.__clients[jid.userhost()] = client
-
-	# Ensures existence of client wrapper for particular user
-	# Client wrapper is returned
-	def ensureClient(self, sender):
-		try:
-			return self.getClient(sender)
-		except:
-			self.addClient(sender, ClientWrapper(self, sender))
-			return self.getClient(sender)
+	def addClient(self, client):
+		self.__clients[client.jid.userhost()] = client
 
 	# Send presence
 	def sendPresence(self, destination, presenceType, status = None, show = None, priority = None, source = None, nick = None):

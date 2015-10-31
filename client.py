@@ -13,7 +13,7 @@ from twisted.words.protocols.jabber.jid import JID
 
 class UserNotRegistered(Exception):
 	def __init__(self, jid):
-		self.jid = jid;
+		self.jid = jid
 	def __str__(self):
 		return "User not registered: " + repr(self.jid.full())
 
@@ -25,20 +25,23 @@ class State(Enum):
 	connected = 2
 	disconnecting = 3
 
-# Wapper for single hangouts client
+
+# Wrapper for single hangouts client
 class ClientWrapper:
 	def __init__(self, h2x, jid):
 		self.h2x = h2x
-
-		self.jid = jid;
+		self.jid = jid
 		self.user = User(jid.userhost())
-
 		self.state = State.disconnected
-		
 		self.thread = None
 		self.loop = None
-
 		self.client = None
+
+		# Track connected instances of XMPP clients, for presence control
+		self.xmppClients = set()
+
+		if not self.user.token:
+			raise UserNotRegistered(jid)
 		
 		self.h2x.sendPresence(self.jid, "unavailable", "Client wrapper created")
 
@@ -247,3 +250,41 @@ class ClientWrapper:
 		asyncio.async(
 			conversation.send_message(segments), loop = self.loop
 		).add_done_callback(lambda x: print("Message sent"))
+
+	def processPresence(self, recipient, presence):
+		# TODO: Send presence to hangouts users
+		print("Sending presence to hangouts user is not implemented")
+
+	def processSubscription(self, recipient):
+		if self.isSubscribed(recipient):
+			self.h2x.sendPresence(self.jid.full(), "subscribed", source = recipient)
+			if self.loop:
+				asyncio.async(self.updateParticipantPresence(), loop = self.loop)
+		else:
+			self.sendPresence(self.jid.full(), "unsubscribed", source = recipient)
+		return
+
+	def processComponentPresence(self, sender, presenceType, recipient):
+		if presenceType == "available":
+			if not self.xmppClients:
+				self.connect()
+			else:
+				# Tell the client we are online
+				self.h2x.sendPresence(self.jid.full(), "available")
+				if self.loop:
+					asyncio.async(self.updateParticipantPresence(), loop = self.loop)
+			self.xmppClients.add(sender)
+		elif presenceType == "unavailable":
+			self.xmppClients.discard(sender)
+			if not self.xmppClients:
+				self.disconnect()
+			else:
+				self.h2x.sendPresence(self.jid.full(), "unavailable")
+		elif presenceType == "probe":
+			self.sendPresence()
+		elif presenceType == "subscribed":
+			print("Presence type subscribed not supported")
+		elif presenceType == "subscribe":
+			self.h2x.sendPresence(self.jid.full(), "subscribed", source = recipient)
+		else:
+			raise NotImplementedError("Presence type: " + presenceType)
