@@ -1,17 +1,9 @@
-import sys
-import time
 import asyncio
 import re
 from xml.sax.saxutils import escape
-from pprint import pprint
-
-from twisted.internet import reactor
-from twisted.words.xish import domish,xpath
 from twisted.words.xish.domish import Element
 from twisted.words.protocols.jabber import xmlstream, client, jid, component
 from twisted.words.protocols.jabber.jid import internJID, JID
-
-import hangups
 
 from iq import Iq
 from userdb import User
@@ -22,9 +14,12 @@ class h2xComponent(component.Service):
 		self.config = config
 		self.reactor = reactor
 		self.iq = Iq(self)
-		
+
+		# Connected users
+		# As hash map user@jabber.org -> ClientWrapper
 		self.clients = {}
-		
+
+		# Track connected instances of XMPP clients, for presence control
 		self.xmppClients = set()
 		
 	def componentConnected(self, xs):
@@ -50,8 +45,7 @@ class h2xComponent(component.Service):
 			return
 		
 		if msgType == "chat":
-			user = User(sender.userhost())
-			self.clients[user.username].sendMessage(recipient, text)
+			self.clients[sender.userhost()].sendMessage(recipient, text)
 		else:
 			raise NotImplementedError
 
@@ -67,7 +61,6 @@ class h2xComponent(component.Service):
 		except Exception as e:
 			print("User JID parsing failed: " + sender + ": " + e.__str__())
 			return
-		
 		
 		# Check user is registered
 		user = User(sender.userhost())
