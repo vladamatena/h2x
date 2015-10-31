@@ -6,6 +6,16 @@ import threading
 from enum import Enum
 
 import hangups
+from userdb import User
+
+from twisted.words.protocols.jabber.jid import JID
+
+
+class UserNotRegistered(Exception):
+	def __init__(self, jid):
+		self.jid = jid;
+	def __str__(self):
+		return "User not registered: " + repr(self.jid.full())
 
 
 # Client connection state
@@ -17,11 +27,12 @@ class State(Enum):
 
 # Wapper for single hangouts client
 class ClientWrapper:
-	def __init__(self, h2x, user, userJID):
+	def __init__(self, h2x, jid):
 		self.h2x = h2x
-		self.user = user
-		self.userJID = userJID
-		
+
+		self.jid = jid;
+		self.user = User(jid.userhost())
+
 		self.state = State.disconnected
 		
 		self.thread = None
@@ -29,7 +40,7 @@ class ClientWrapper:
 
 		self.client = None
 		
-		self.h2x.sendPresence(self.userJID, "unavailable", "Client wrapper created")
+		self.h2x.sendPresence(self.jid, "unavailable", "Client wrapper created")
 
 	# Provides token if refresh fails
 	# Would be nice to ask user for token
@@ -62,11 +73,11 @@ class ClientWrapper:
 		asyncio.set_event_loop(loop)
 		
 		# Get outh2 cookies
-		self.h2x.sendPresence(self.userJID, "unavailable", "Getting cookies")
+		self.h2x.sendPresence(self.jid, "unavailable", "Getting cookies")
 		cookies = hangups.auth.get_auth(self.getToken, self.user.tokenRefreshPath())
 		
 		# Create client
-		self.h2x.sendPresence(self.userJID, "unavailable", "Initializing client")
+		self.h2x.sendPresence(self.jid, "unavailable", "Initializing client")
 		self.client = hangups.Client(cookies)
 		
 		# Add state change observers
@@ -95,7 +106,7 @@ class ClientWrapper:
 	def onConnect(self):
 		print("Connected!")
 		self.state = State.connected
-		self.h2x.sendPresence(self.userJID, "available", "Online")
+		self.h2x.sendPresence(self.jid, "available", "Online")
 		
 		self.userList, self.convList = (
 			yield from hangups.build_user_conversation_list(self.client)
@@ -139,7 +150,7 @@ class ClientWrapper:
 			else:
 				show = None
 		
-			self.h2x.sendPresence(self.userJID, state, source = self.participant2JID(presence.user_id), show = show)
+			self.h2x.sendPresence(self.jid, state, source = self.participant2JID(presence.user_id), show = show)
 
 	# Check if uses is in contact list
 	def isSubscribed(self, jid):
@@ -152,13 +163,13 @@ class ClientWrapper:
 	# Send current presence to jabber client
 	def sendPresence(self):
 		if self.state == State.disconnected:
-			self.h2x.sendPresence(self.userJID, "unavailable", "Client disconnected")
+			self.h2x.sendPresence(self.jid, "unavailable", "Client disconnected")
 		elif self.state == State.connecting:
-			self.h2x.sendPresence(self.userJID, "unavailable", "Client connecting...")
+			self.h2x.sendPresence(self.jid, "unavailable", "Client connecting...")
 		elif self.state == State.connected:
-			self.h2x.sendPresence(self.userJID, "available", "Client connected")
+			self.h2x.sendPresence(self.jid, "available", "Client connected")
 		elif self.state == State.disconnecting:
-			self.h2x.sendPresence(self.userJID, "available", "Client disconnecting...")
+			self.h2x.sendPresence(self.jid, "available", "Client disconnecting...")
 	
 	def getUser(self, jid):
 		uid = self.JID2Hang(jid) 
@@ -170,7 +181,7 @@ class ClientWrapper:
 		
 		for user in self.userList.get_all():
 			if user.is_self == False:
-				self.h2x.sendPresence(self.userJID, "subscribe", source = self.hang2JID(user), nick = user.full_name)
+				self.h2x.sendPresence(self.jid, "subscribe", source = self.hang2JID(user), nick = user.full_name)
 		
 	@asyncio.coroutine
 	def onDisconnect(self):
@@ -190,15 +201,15 @@ class ClientWrapper:
 		return chat_id + "." + gaia_id + "@" + self.h2x.config.JID
 	
 	def participant2JID(self, participant):
-		return self.ids2JID(participant.chat_id, participant.gaia_id)
+		return JID(self.ids2JID(participant.chat_id, participant.gaia_id))
 		
 	def hang2JID(self, hangUser):
-		return self.ids2JID(hangUser.id_.chat_id, hangUser.id_.gaia_id)
+		return JID(self.ids2JID(hangUser.id_.chat_id, hangUser.id_.gaia_id))
 		
-	def JID2Hang(self, userJID):
-		if not self.h2x.isHangUser(userJID):
-			raise Exception(userJID + " is not valid user JID for the transport")
-		userIdParts = re.sub(self.h2x.SUFFIX, "", userJID).split(".")
+	def JID2Hang(self, jid):
+		if not self.h2x.isHangUser(jid):
+			raise Exception(jid.full() + " is not valid user JID for the transport")
+		userIdParts = jid.user.split(".")
 		userChatId = userIdParts[0]
 		userGaiaId = userIdParts[1]
 		return hangups.user.UserID(userChatId, userGaiaId)
@@ -212,16 +223,16 @@ class ClientWrapper:
 				# Deliver chat message
 				user = conv.get_user(convEvent.user_id)
 				if not user.is_self:
-					# TODO: message tiestamp for offline delivery
-					self.h2x.sendMessage(self.userJID, self.hang2JID(user), convEvent.text)
+					# TODO: message timestamp for offline delivery
+					self.h2x.sendMessage(self.jid, self.hang2JID(user), convEvent.text)
 			conv.update_read_timestamp()
 		
 		# TODO: Handle other events
 
-	def sendMessage(self, recipientJID, text):
+	def sendMessage(self, recipient, text):
 		# Pick the coversation with the recipient user only
 		conversation = None
-		userId = self.JID2Hang(recipientJID)
+		userId = self.JID2Hang(recipient)
 		for c in self.convList.get_all():
 			if len(c.users) == 2:
 				for u in c.users:

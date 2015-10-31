@@ -3,9 +3,7 @@
 # Stores tokens in files according to username
 #
 
-import os
 import shlex
-import datetime
 
 STORAGE = "users/"
 

@@ -2,8 +2,8 @@ import asyncio
 import re
 from xml.sax.saxutils import escape
 from twisted.words.xish.domish import Element
-from twisted.words.protocols.jabber import xmlstream, client, jid, component
-from twisted.words.protocols.jabber.jid import internJID, JID
+from twisted.words.protocols.jabber import component
+from twisted.words.protocols.jabber.jid import JID
 
 from iq import Iq
 from userdb import User
@@ -34,7 +34,7 @@ class h2xComponent(component.Service):
 	# Forward message to Hangouts client
 	def onMessage(self, el):
 		msgType = el.getAttribute("type")
-		recipient = el.getAttribute("to")
+		recipient = JID(el.getAttribute("to"))
 		sender = JID(el.getAttribute("from"))
 		text = el.firstChildElement().__str__()
 
@@ -45,7 +45,7 @@ class h2xComponent(component.Service):
 
 	def onPresence(self, el):
 		sender = JID(el.getAttribute("from"))
-		to = el.getAttribute("to")
+		recipient = JID(el.getAttribute("to"))
 		presenceType = el.getAttribute("type")
 		if not presenceType:
 			presenceType = "available"
@@ -56,28 +56,28 @@ class h2xComponent(component.Service):
 			user.token
 		except Exception as e:
 			print(e)
-			self.sendPresenceError(to = sender, fro = to, eType="auth", condition="registration-required")
+			self.sendPresenceError(to = sender, fro = recipient, eType="auth", condition="registration-required")
 			return
 		
-		print("PresenceReceived: " + sender.full() + " -> " + to + " : " + presenceType)
+		print("PresenceReceived: " + sender.full() + " -> " + recipient.full() + " : " + presenceType)
 
 		# Service component presence
-		if to == self.config.JID:
-			self.componentPresence(el, sender, presenceType, user, to)
+		if recipient == JID(self.config.JID):
+			self.onComponentPresence(el, sender, presenceType, user, recipient)
 			return
 		
 		# Subscription request
 		if presenceType == "subscribe":
 			client = self.getClient(sender)
-			if client.isSubscribed(to):
-				self.sendPresence(sender.full(), "subscribed", source = to)
+			if client.isSubscribed(recipient):
+				self.sendPresence(sender.full(), "subscribed", source = recipient)
 				if client.loop:
 					asyncio.async(client.updateParticipantPresence(), loop = client.loop)
 			else:
-				self.sendPresence(sender.full(), "unsubscribed", source = to)
+				self.sendPresence(sender.full(), "unsubscribed", source = recipient)
 
-	def componentPresence(self, el, sender, presenceType, user, to):
-		client = self.ensureClient(user, sender)
+	def onComponentPresence(self, el, sender, presenceType, user, to):
+		client = self.ensureClient(sender)
 		
 		if presenceType == "available":
 			if not self.xmppClients:
@@ -103,26 +103,6 @@ class h2xComponent(component.Service):
 		else:
 			raise NotImplementedError("Presence type: " + presenceType)
 
-	# Send presence
-	def sendPresence(self, destination, presenceType, status = None, show = None, priority = None, source = None, nick = None):
-		if not source:
-			source = self.config.JID
-		presence = Element((None,'presence'))
-		presence.attributes['to'] = destination
-		presence.attributes['from'] = source
-		presence.attributes['type'] = presenceType
-		if status:
-			presence.addElement('status').addContent(status)
-		if show:
-			presence.addElement('show').addContent(show)
-		if priority:
-			presence.addElement('priority').addContent(priority)
-		if nick:
-			nickElement = presence.addElement('nick', content = nick)
-			nickElement.attributes["xmlns"] = "http://jabber.org/protocol/nick"
-		print("PresenceSend: " + source + " -> " + destination + " : " + presenceType)
-		self.send(presence)
-
 	# Get hangups client by JID instance
 	def getClient(self, jid):
 		return self.__clients[jid.userhost()];
@@ -133,18 +113,38 @@ class h2xComponent(component.Service):
 
 	# Ensures existence of client wrapper for particular user
 	# Client wrapper is returned
-	def ensureClient(self, user, sender):
+	def ensureClient(self, sender):
 		try:
 			return self.getClient(sender)
 		except:
-			self.addClient(sender, ClientWrapper(self, user, sender.userhost()))
+			self.addClient(sender, ClientWrapper(self, sender))
 			return self.getClient(sender)
+
+	# Send presence
+	def sendPresence(self, destination, presenceType, status = None, show = None, priority = None, source = None, nick = None):
+		if not source:
+			source = JID(self.config.JID)
+		presence = Element((None,'presence'))
+		presence.attributes['to'] = destination.userhost()
+		presence.attributes['from'] = source.userhost()
+		presence.attributes['type'] = presenceType
+		if status:
+			presence.addElement('status').addContent(status)
+		if show:
+			presence.addElement('show').addContent(show)
+		if priority:
+			presence.addElement('priority').addContent(priority)
+		if nick:
+			nickElement = presence.addElement('nick', content = nick)
+			nickElement.attributes["xmlns"] = "http://jabber.org/protocol/nick"
+		print("PresenceSend: " + source.full() + " -> " + destination.full() + " : " + presenceType)
+		self.send(presence)
 		
 	# Send message
-	def sendMessage(self, to, fro, text, messageType = "chat"):
+	def sendMessage(self, recipient, sender, text, messageType = "chat"):
 		el = Element((None, "message"))
-		el.attributes["to"] = to
-		el.attributes["from"] = fro
+		el.attributes["to"] = recipient.full();
+		el.attributes["from"] = sender.full()
 		el.attributes["type"] = messageType
 		
 		body = el.addElement("body")
@@ -166,7 +166,7 @@ class h2xComponent(component.Service):
 		return "@" + self.config.JID + "$";
 	
 	def isHangUser(self, jid):
-		return re.match(".*" + self.SUFFIX, jid)
+		return re.match(".*" + self.SUFFIX, jid.userhost())
 
 	def sendPresenceError(self, to, fro, eType, condition):
 		raise NotImplementedError
