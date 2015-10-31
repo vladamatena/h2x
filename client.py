@@ -1,14 +1,12 @@
 # hangups client wrapper for h2x
 
-import sys
-import hangups
-import time
 import asyncio
 import re
 import threading
-import itertools
-
 from enum import Enum
+
+import hangups
+
 
 # Client connection state
 class State(Enum):
@@ -28,6 +26,8 @@ class ClientWrapper:
 		
 		self.thread = None
 		self.loop = None
+
+		self.client = None
 		
 		self.h2x.sendPresence(self.userJID, "unavailable", "Client wrapper created")
 
@@ -98,8 +98,8 @@ class ClientWrapper:
 		self.h2x.sendPresence(self.userJID, "available", "Online")
 		
 		self.userList, self.convList = (
-            yield from hangups.build_user_conversation_list(self.client)
-        )
+			yield from hangups.build_user_conversation_list(self.client)
+		)
 		self.convList.on_event.add_observer(self.onEvent)
 		
 		yield from self.updateParticipantPresence()
@@ -140,8 +140,7 @@ class ClientWrapper:
 				show = None
 		
 			self.h2x.sendPresence(self.userJID, state, source = self.participant2JID(presence.user_id), show = show)
-		
-				
+
 	# Check if uses is in contact list
 	def isSubscribed(self, jid):
 		user = self.JID2Hang(jid)
