@@ -1,14 +1,16 @@
 from twisted.words.protocols.jabber import jid
 from twisted.words.protocols.jabber.jid import internJID, JID
 from twisted.words.xish.domish import Element
+from twisted.words.protocols.jabber.client import IQ
 import hangups
+import h2x
 
 from userdb import User
 
 # Builder for form element
 class Form:
 	# Creates form
-	def __init__(self, iq):
+	def __init__(self, iq: IQ):
 		self.iq = iq
 		
 		# Create form element
@@ -17,11 +19,11 @@ class Form:
 		self.form.attributes["type"] = "form"
 
 	# Adds title to form element
-	def addTitle(self, caption):
+	def addTitle(self, caption: str):
 		self.form.addElement("title", content = caption)
 
 	# Adds text box to form element
-	def addTextBox(self, name, caption, value, required = False):
+	def addTextBox(self, name: str, caption: str, value: str, required: bool = False):
 		textBox = self.form.addElement("field")
 		textBox.attributes["type"] = "text-single"
 		textBox.attributes["var"] = name
@@ -60,98 +62,93 @@ class Iq:
 	def __init__(self, h2x):
 		self.h2x = h2x
 
-	def onIq(self, el):
-		fro = el.getAttribute("from")
-		to = el.getAttribute("to")
-		ID = el.getAttribute("id")
-		iqType = el.getAttribute("type")
-		try:
-			fro = internJID(fro)
-			to = internJID(to)
-		except Exception as e:
-			return
-		
-		print("IqReceived " + fro.full() + " -> " + to.full() + ": " + iqType)
+	def onIq(self, element: Element):
+		source = JID(element.getAttribute("from"))
+		recipient = JID(element.getAttribute("to"))
+		identification = element.getAttribute("id")
+		iqType = element.getAttribute("type")
+
+		print("IqReceived " + source.full() + " -> " + recipient.full() + ": " + iqType)
 		
 		# Process component iq
-		if to.full() == self.h2x.config.JID:
-			self.componentIq(el, fro, ID, iqType)
+		if recipient.full() == self.h2x.config.JID:
+			self.componentIq(element, source, identification, iqType)
 			return
 		
 		# Process user iq
-		if self.h2x.isHangUser(to.userhost()):
-			self.userIq(el, fro, to, ID, iqType)
+		if self.h2x.isHangUser(recipient):
+			self.userIq(element, source, recipient, identification, iqType)
 			return
 		
 		# TODO: Can we send something like wrong request?
-		self.__sendIqError(to = fro.full(), fro = to.full(), ID = ID, eType = "cancel", condition = "service-unavailable")
+		self.__sendIqError(recipient = source.full(), sender = recipient.full(), identification = identification, errorType= "cancel", condition = "service-unavailable")
 		
-	def componentIq(self, el, fro, ID, iqType):
-		for query in el.elements():
+	def componentIq(self, element: Element, sender: JID, identifier: str, iqType: str):
+		for query in element.elements():
 			xmlns = query.uri
 			node = query.getAttribute("node")
 			
 			if xmlns == "http://jabber.org/protocol/disco#info" and iqType == "get":
-				self.__getDiscoInfo(el, fro, ID, node)
+				self.__getDiscoInfo(sender, identifier, node)
 				return
 			
 			if xmlns == "http://jabber.org/protocol/disco#items" and iqType == "get":
-				self.__getDiscoItems(el, fro, ID, node)
+				self.__getDiscoItems(sender, identifier, node)
 				return
 			
 			if xmlns == "jabber:iq:register" and iqType == "get":
-				self.__getRegister(el, fro, ID)
+				self.__getRegister(sender, identifier)
 				return
 
 			if xmlns == "jabber:iq:register" and iqType == "set":
-				self.__setRegister(el, fro, ID)
+				self.__setRegister(element, sender, identifier)
 				return
 			
 			if xmlns == "http://jabber.org/protocol/commands" and query.name=="command" and iqType=="set":
-				self.__command(query, fro, ID, node)
+				self.__command(query, sender, identifier, node)
 				return
 
-			self.__sendIqError(to = fro.full(), fro = self.h2x.config.JID, ID = ID, eType = "cancel", condition = "feature-not-implemented")
+			self.__sendIqError(recipient = sender.full(), sender = self.h2x.config.JID, identification = identifier, errorType = "cancel", condition = "feature-not-implemented")
 			
-	def userIq(self, el, fro, to, ID, iqType):
-		for query in el.elements():
+	def userIq(self, element: Element, sender: JID, recipient: JID, identifier: str, iqType: str):
+		for query in element.elements():
 			xmlns = query.uri
 			node = query.getAttribute("node")
 			
 			if xmlns == "jabber:iq:version" and iqType == "get":
-				self.__getVersion(fro, to, ID)
+				self.__getVersion(sender, recipient, identifier)
 				return
 			
 			if xmlns == "vcard-temp" and iqType == "get" and query.name == "vCard":
-				self.__getVCard(fro, to, ID)
+				self.__getVCard(sender, recipient, identifier)
 				return
 			
-			self.__sendIqError(to = fro.full(), fro = self.h2x.config.JID, ID = ID, eType = "cancel", condition = "feature-not-implemented")
+			self.__sendIqError(recipient= sender.full(), sender= self.h2x.config.JID, identification= identifier, errorType= "cancel", condition = "feature-not-implemented")
 	
-	def __getVersion(self, fro, to, ID):
+	def __getVersion(self, sender: JID, recipient: JID, identifier: str):
 		iq = Element((None,"iq"))
 		iq.attributes["type"] = "result"
-		iq.attributes["from"] = to.full()
-		iq.attributes["to"] = fro.full()
-		if ID:
-			iq.attributes["id"] = ID
+		iq.attributes["from"] = recipient.full()
+		iq.attributes["to"] = sender.full()
+		if identifier:
+			iq.attributes["id"] = identifier
 		query = iq.addElement("query")
 		query.attributes["xmlns"] = "jabber:iq:version"
 		query.addElement("name", content = "h2x transport")
 		query.addElement("version", content = 0)
 		self.h2x.send(iq)
 		
-	def __getVCard(self, fro, to, ID):
+	def __getVCard(self, sender: JID, recipient: JID, identifier):
 		iq = Element((None, "iq"))
 		iq.attributes["type"] = "result"
-		iq.attributes["from"] = to.full()
-		iq.attributes["to"] = fro.full()
-		if ID:
-			iq.attributes["id"] = ID
+		iq.attributes["from"] = recipient.full()
+		iq.attributes["to"] = sender.full()
+		if identifier:
+			iq.attributes["id"] = identifier
 		vcard = iq.addElement("vCard")
 		vcard.attributes["xmlns"] = "vcard-temp"
 
-		userInfo = self.h2x.getClient(fro).getUser(to.userhost())
+		userInfo = self.h2x.getClient(sender).getUser(recipient.userhost())
 
 		# TODO: Get more user info
 		vcard.addElement("FN", content = userInfo.full_name)
@@ -162,13 +159,13 @@ class Iq:
 
 		self.h2x.send(iq)
 
-	def __getRegister(self, el, fro, ID):
+	def __getRegister(self, sender: JID, identifier: str):
 		iq = Element((None,"iq"))
 		iq.attributes["type"] = "result"
 		iq.attributes["from"] = self.h2x.config.JID
-		iq.attributes["to"] = fro.full()
-		if ID:
-			iq.attributes["id"]=ID
+		iq.attributes["to"] = sender.full()
+		if identifier:
+			iq.attributes["id"]=identifier
 		query = iq.addElement("query")
 		query.attributes["xmlns"] = "jabber:iq:register"
 		
@@ -178,7 +175,7 @@ class Iq:
 		form.addTextBox("token", "Replace link by token", hangups.auth.OAUTH2_LOGIN_URL, required = True)
 		self.h2x.send(iq)
 
-	def __setRegister(self, data, sender, ID):
+	def __setRegister(self, data: Element, sender: JID, identifier: str):
 		try:
 			user = sender.userhost()
 			token = data.firstChildElement().firstChildElement().firstChildElement().firstChildElement().__str__()
@@ -186,24 +183,24 @@ class Iq:
 			# Fail registration
 			print("Register reponse processing failed: " + e.__str__())
 			# FIXME: Send negative response here !!!
-			self.__sendIqResult(sender.full(), self.h2x.config.JID, ID, "jabber:iq:register")
+			self.__sendIqResult(sender.full(), self.h2x.config.JID, identifier, "jabber:iq:register")
 			return
 		
 		self.h2x.registerUser(user, token)
 		
 		# Send registration done
-		self.__sendIqResult(sender.full(), self.h2x.config.JID, ID, "jabber:iq:register")
+		self.__sendIqResult(sender.full(), self.h2x.config.JID, identifier, "jabber:iq:register")
 		
 		# Request subscription
-		self.h2x.sendPresence(sender.userhost(), "subscribe")
+		self.h2x.sendPresence(sender, "subscribe")
 
-	def __getDiscoInfo(self, el, fro, ID, node):
+	def __getDiscoInfo(self, sender: JID, identifier: str, node: str):
 		iq = Element((None, "iq"))
 		iq.attributes["type"] = "result"
 		iq.attributes["from"] = self.h2x.config.JID
-		iq.attributes["to"] = fro.full()
-		if ID:
-			iq.attributes["id"] = ID
+		iq.attributes["to"] = sender.full()
+		if identifier:
+			iq.attributes["id"] = identifier
 		query = iq.addElement("query")
 		query.attributes["xmlns"] = "http://jabber.org/protocol/disco#info"
 		
@@ -224,14 +221,14 @@ class Iq:
 			
 		self.h2x.send(iq)
 
-	def __getDiscoItems(self, el, fro, ID, node):
+	def __getDiscoItems(self, sender: JID, identifier: str, node: str):
 		iq = Element((None, "iq"))
 		iq.attributes["type"] = "result"
 		iq.attributes["from"] = self.h2x.config.JID
-		iq.attributes["to"] = fro.full()
+		iq.attributes["to"] = sender.full()
 		
-		if ID:
-			iq.attributes["id"] = ID
+		if identifier:
+			iq.attributes["id"] = identifier
 		query = iq.addElement("query")
 		query.attributes["xmlns"] = "http://jabber.org/protocol/disco#items"
 		
@@ -245,7 +242,7 @@ class Iq:
 		
 		self.h2x.send(iq)
 		
-	def __addDiscoItem(self, query, jid, name = None, node = None):
+	def __addDiscoItem(self, query, jid: str, name: str = None, node: str = None):
 		item = query.addElement("item")
 		item.attributes["jid"] = jid
 		if name:
@@ -254,29 +251,30 @@ class Iq:
 			item.attributes["node"] = node
 		return item
 	
-	def __command(self, query, fro, ID, node):
+	def __command(self, query, sender: JID, identifier: str, node: str):
 		if node == "import_contacts":
-			self.h2x.getClient(fro).importContacts()
+			self.h2x.getClient(sender).importContacts()
 
-	def __sendIqResult(self, to, fro, ID, xmlns):
+	def __sendIqResult(self, recipient: str, sender: str, identification: str, xmlns: str):
+		# TODO: use xmlns
 		el = Element((None,"iq"))
-		el.attributes["to"] = to
-		el.attributes["from"] = fro
-		if ID:
-			el.attributes["id"] = ID
+		el.attributes["to"] = recipient
+		el.attributes["from"] = sender
+		if identification:
+			el.attributes["id"] = identification
 			el.attributes["type"] = "result"
 			self.h2x.send(el)
 	
 	# TODO: Refactor
-	def __sendIqError(self, to, fro, ID, eType, condition, sender = None):
+	def __sendIqError(self, recipient: str, sender: str, identification, errorType: str, condition: str, source: str = None):
 		el = Element((None, "iq"))
-		el.attributes["to"] = to
-		el.attributes["from"] = fro
-		if ID:
-			el.attributes["id"] = ID
+		el.attributes["to"] = recipient
+		el.attributes["from"] = sender
+		if identification:
+			el.attributes["id"] = identification
 			el.attributes["type"] = "error"
 			error = el.addElement("error")
-			error.attributes["type"] = eType
+			error.attributes["type"] = errorType
 			error.attributes["code"] = str(ERROR_CODE_MAP[condition])
 			cond = error.addElement(condition)
 			cond.attributes["xmlns"] = "urn:ietf:params:xml:ns:xmpp-stanzas"

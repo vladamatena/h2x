@@ -8,7 +8,7 @@ import shlex
 STORAGE = "users/"
 
 class User:
-	def __init__(self, username):
+	def __init__(self, username: str):
 		self.__username = username
 		
 	def __userPath(self):
@@ -27,7 +27,7 @@ class User:
 			raise Exception("Token not available for user " + self.username) from e
         
 	@token.setter
-	def token(self, value):
+	def token(self, value: str):
 		self.__token = value;
 	
 	def tokenPath(self):

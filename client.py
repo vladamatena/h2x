@@ -5,10 +5,11 @@ import re
 import threading
 from enum import Enum
 
-import hangups
-from userdb import User
-
 from twisted.words.protocols.jabber.jid import JID
+
+import hangups
+
+from userdb import User
 
 
 class UserNotRegistered(Exception):
@@ -28,7 +29,7 @@ class State(Enum):
 
 # Wrapper for single hangouts client
 class ClientWrapper:
-	def __init__(self, h2x, jid):
+	def __init__(self, h2x, jid: JID):
 		self.h2x = h2x
 		self.jid = jid
 		self.user = User(jid.userhost())
@@ -156,7 +157,7 @@ class ClientWrapper:
 			self.h2x.sendPresence(self.jid, state, source = self.participant2JID(presence.user_id), show = show)
 
 	# Check if uses is in contact list
-	def isSubscribed(self, jid):
+	def isSubscribed(self, jid: JID):
 		user = self.JID2Hang(jid)
 		if self.userList.get_user(user):
 			return True
@@ -174,7 +175,7 @@ class ClientWrapper:
 		elif self.state == State.disconnecting:
 			self.h2x.sendPresence(self.jid, "available", "Client disconnecting...")
 	
-	def getUser(self, jid):
+	def getUser(self, jid: JID):
 		uid = self.JID2Hang(jid) 
 		return self.userList.get_user(uid)
 		
@@ -195,21 +196,21 @@ class ClientWrapper:
 		print("Reconnected")
 		
 	@asyncio.coroutine
-	def onStateUpdate(self, state):
+	def onStateUpdate(self, state: State):
 		print("StateUpdate")
 		# TODO: This is stupid but works, we would like to update only changed presence
 		yield from self.updateParticipantPresence()
 	
-	def ids2JID(self, chat_id, gaia_id):
+	def ids2JID(self, chat_id: str, gaia_id: str):
 		return chat_id + "." + gaia_id + "@" + self.h2x.config.JID
 	
-	def participant2JID(self, participant):
+	def participant2JID(self, participant: hangups.user):
 		return JID(self.ids2JID(participant.chat_id, participant.gaia_id))
 		
-	def hang2JID(self, hangUser):
+	def hang2JID(self, hangUser: hangups.user):
 		return JID(self.ids2JID(hangUser.id_.chat_id, hangUser.id_.gaia_id))
 		
-	def JID2Hang(self, jid):
+	def JID2Hang(self, jid: JID):
 		if not self.h2x.isHangUser(jid):
 			raise Exception(jid.full() + " is not valid user JID for the transport")
 		userIdParts = jid.user.split(".")
@@ -217,7 +218,7 @@ class ClientWrapper:
 		userGaiaId = userIdParts[1]
 		return hangups.user.UserID(userChatId, userGaiaId)
 	
-	def onEvent(self, convEvent):
+	def onEvent(self, convEvent: hangups.conversation_event):
 		# Chat message
 		if type(convEvent) is hangups.conversation_event.ChatMessageEvent:
 			conv = self.convList.get(convEvent.conversation_id)
@@ -232,7 +233,7 @@ class ClientWrapper:
 		
 		# TODO: Handle other events
 
-	def sendMessage(self, recipient, text):
+	def sendMessage(self, recipient: JID, text: str):
 		# Pick the coversation with the recipient user only
 		conversation = None
 		userId = self.JID2Hang(recipient)
@@ -243,7 +244,7 @@ class ClientWrapper:
 						conversation = c
 
 		if conversation == None:
-			raise "No conversation found for the recipient"
+			raise Exception("No conversation found for the recipient")
 		
 		# Send message
 		segments = hangups.ChatMessageSegment.from_str(text)
@@ -255,22 +256,22 @@ class ClientWrapper:
 		# TODO: Send presence to hangouts users
 		print("Sending presence to hangouts user is not implemented")
 
-	def processSubscription(self, recipient):
+	def processSubscription(self, recipient: JID):
 		if self.isSubscribed(recipient):
-			self.h2x.sendPresence(self.jid.full(), "subscribed", source = recipient)
+			self.h2x.sendPresence(self.jid, "subscribed", source = recipient)
 			if self.loop:
 				asyncio.async(self.updateParticipantPresence(), loop = self.loop)
 		else:
-			self.sendPresence(self.jid.full(), "unsubscribed", source = recipient)
+			self.h2x.sendPresence(self.jid, "unsubscribed", source = recipient)
 		return
 
-	def processComponentPresence(self, sender, presenceType, recipient):
+	def processComponentPresence(self, sender: JID, presenceType: str, recipient: JID):
 		if presenceType == "available":
 			if not self.xmppClients:
 				self.connect()
 			else:
 				# Tell the client we are online
-				self.h2x.sendPresence(self.jid.full(), "available")
+				self.h2x.sendPresence(self.jid, "available")
 				if self.loop:
 					asyncio.async(self.updateParticipantPresence(), loop = self.loop)
 			self.xmppClients.add(sender)
@@ -279,12 +280,12 @@ class ClientWrapper:
 			if not self.xmppClients:
 				self.disconnect()
 			else:
-				self.h2x.sendPresence(self.jid.full(), "unavailable")
+				self.h2x.sendPresence(self.jid, "unavailable")
 		elif presenceType == "probe":
 			self.sendPresence()
 		elif presenceType == "subscribed":
 			print("Presence type subscribed not supported")
 		elif presenceType == "subscribe":
-			self.h2x.sendPresence(self.jid.full(), "subscribed", source = recipient)
+			self.h2x.sendPresence(self.jid, "subscribed", source = recipient)
 		else:
 			raise NotImplementedError("Presence type: " + presenceType)
