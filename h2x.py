@@ -25,11 +25,11 @@ class h2xComponent(component.Service):
 
 	def componentConnected(self, xmlStream: XmlStream):
 		self.xmlstream = xmlStream
-		
+
 		self.xmlstream.addObserver("/iq", self.iq.onIq)
 		self.xmlstream.addObserver("/presence", self.onPresence)
 		self.xmlstream.addObserver("/message", self.onMessage)
-		
+
 		print("h2x component connected :-)")
 
 	# Forward message to Hangouts client
@@ -45,7 +45,6 @@ class h2xComponent(component.Service):
 			raise NotImplementedError
 
 	def onPresence(self, element: Element):
-		print(type(element))
 		sender = JID(element.getAttribute("from"))
 		recipient = JID(element.getAttribute("to"))
 		presenceType = element.getAttribute("type")
@@ -61,7 +60,8 @@ class h2xComponent(component.Service):
 					self.addClient(ClientWrapper(self, sender))
 				except UserNotRegistered as e:
 					print(e)
-					self.sendPresenceError(recipient = sender, sender = recipient, errorType = "auth", condition = "registration-required")
+					self.sendPresenceError(recipient=sender, sender=recipient, errorType="auth",
+										   condition="registration-required")
 					return
 			else:
 				print("Operation on client which has not yet send available presence !!!")
@@ -95,10 +95,11 @@ class h2xComponent(component.Service):
 		self.__clients[client.jid.userhost()] = client
 
 	# Send presence
-	def sendPresence(self, destination: JID, presenceType: str, status: str = None, show: str = None, priority: int = None, source: JID = None, nick: str = None):
+	def sendPresence(self, destination: JID, presenceType: str, status: str = None, show: str = None,
+					 priority: int = None, source: JID = None, nick: str = None):
 		if not source:
 			source = JID(self.config.JID)
-		presence = Element((None,'presence'))
+		presence = Element((None, 'presence'))
 		presence.attributes['to'] = destination.userhost()
 		presence.attributes['from'] = source.userhost()
 		presence.attributes['type'] = presenceType
@@ -109,36 +110,36 @@ class h2xComponent(component.Service):
 		if priority:
 			presence.addElement('priority').addContent(priority)
 		if nick:
-			nickElement = presence.addElement('nick', content = nick)
+			nickElement = presence.addElement('nick', content=nick)
 			nickElement.attributes["xmlns"] = "http://jabber.org/protocol/nick"
 		print("PresenceSend: " + source.full() + " -> " + destination.full() + " : " + presenceType)
 		self.send(presence)
-		
+
 	# Send message
-	def sendMessage(self, recipient: JID, sender:JID, text: str, messageType: str = "chat"):
+	def sendMessage(self, recipient: JID, sender: JID, text: str, messageType: str = "chat"):
 		el = Element((None, "message"))
 		el.attributes["to"] = recipient.full()
 		el.attributes["from"] = sender.full()
 		el.attributes["type"] = messageType
-		
+
 		body = el.addElement("body")
 		body.addContent(escape(text))
 		self.send(el)
-		
+
 	# Register user
 	def registerUser(self, username: str, token: str):
 		# Debug info
 		print("Registration processed:")
 		print("Token: " + token)
 		print("User: " + username)
-		
+
 		# Store user in db
 		User(username).token = token
-		
+
 	@property
 	def SUFFIX(self):
 		return "@" + self.config.JID + "$"
-	
+
 	def isHangUser(self, jid: JID):
 		return re.match(".*" + self.SUFFIX, jid.userhost())
 

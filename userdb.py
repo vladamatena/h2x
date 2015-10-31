@@ -7,13 +7,14 @@ import shlex
 
 STORAGE = "users/"
 
+
 class User:
 	def __init__(self, username: str):
 		self.__username = username
-		
+
 	def __userPath(self):
 		return shlex.quote(STORAGE + self.username)
-		
+
 	@property
 	def username(self):
 		return self.__username
@@ -25,13 +26,13 @@ class User:
 			return file.read()
 		except BaseException as e:
 			raise Exception("Token not available for user " + self.username) from e
-        
+
 	@token.setter
 	def token(self, value: str):
 		self.__token = value;
-	
+
 	def tokenPath(self):
 		return self.__userPath()
-	
+
 	def tokenRefreshPath(self):
 		return self.__userPath() + ".refresh"

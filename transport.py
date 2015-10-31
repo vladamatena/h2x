@@ -6,9 +6,10 @@ from twisted.internet import reactor
 from config import Config
 import h2x
 
+
 def main():
 	print("Hangouts to XMPP transport")
-	
+
 	config = Config()
 
 	h2xComponent = h2x.h2xComponent(reactor, config)
@@ -17,5 +18,6 @@ def main():
 	h2xComponent.setServiceParent(connector)
 	connector.startService()
 	reactor.run()
+
 
 main()
