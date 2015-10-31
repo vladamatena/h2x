@@ -151,7 +151,7 @@ class Iq:
 		vcard = iq.addElement("vCard")
 		vcard.attributes["xmlns"] = "vcard-temp"
 
-		userInfo = self.h2x.getClientByJID(fro.userhost()).getUser(to.userhost())
+		userInfo = self.h2x.getClient(fro).getUser(to.userhost())
 
 		# TODO: Get more user info
 		vcard.addElement("FN", content = userInfo.full_name)
@@ -256,8 +256,7 @@ class Iq:
 	
 	def __command(self, query, fro, ID, node):
 		if node == "import_contacts":
-			user = User(fro.userhostJID().full())
-			self.h2x.getClient(user).importContacts()
+			self.h2x.getClient(fro).importContacts()
 
 	def __sendIqResult(self, to, fro, ID, xmlns):
 		el = Element((None,"iq"))

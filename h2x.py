@@ -17,7 +17,7 @@ class h2xComponent(component.Service):
 
 		# Connected users
 		# As hash map user@jabber.org -> ClientWrapper
-		self.clients = {}
+		self.__clients = {}
 
 		# Track connected instances of XMPP clients, for presence control
 		self.xmppClients = set()
@@ -35,33 +35,21 @@ class h2xComponent(component.Service):
 	def onMessage(self, el):
 		msgType = el.getAttribute("type")
 		recipient = el.getAttribute("to")
-		sender = el.getAttribute("from")
+		sender = JID(el.getAttribute("from"))
 		text = el.firstChildElement().__str__()
-		
-		try:
-			sender = JID(sender)
-		except Exception as e:
-			print("User JID parsing failed: " + e.__str__())
-			return
-		
+
 		if msgType == "chat":
-			self.clients[sender.userhost()].sendMessage(recipient, text)
+			self.getClient(sender).sendMessage(recipient, text)
 		else:
 			raise NotImplementedError
 
 	def onPresence(self, el):
-		sender = el.getAttribute("from")
+		sender = JID(el.getAttribute("from"))
 		to = el.getAttribute("to")
 		presenceType = el.getAttribute("type")
 		if not presenceType:
 			presenceType = "available"
-		
-		try:
-			sender = JID(sender)
-		except Exception as e:
-			print("User JID parsing failed: " + sender + ": " + e.__str__())
-			return
-		
+
 		# Check user is registered
 		user = User(sender.userhost())
 		try:
@@ -80,7 +68,7 @@ class h2xComponent(component.Service):
 		
 		# Subscription request
 		if presenceType == "subscribe":
-			client = self.getClient(user)
+			client = self.getClient(sender)
 			if client.isSubscribed(to):
 				self.sendPresence(sender.full(), "subscribed", source = to)
 				if client.loop:
@@ -134,21 +122,23 @@ class h2xComponent(component.Service):
 			nickElement.attributes["xmlns"] = "http://jabber.org/protocol/nick"
 		print("PresenceSend: " + source + " -> " + destination + " : " + presenceType)
 		self.send(presence)
-	
-	def getClientByJID(self, jid):
-		return self.clients[jid]
-	
-	def getClient(self, user):
-		return self.getClientByJID(user.username)
-	
+
+	# Get hangups client by JID instance
+	def getClient(self, jid):
+		return self.__clients[jid.userhost()];
+
+	# Add new client to client map
+	def addClient(self, jid, client):
+		self.__clients[jid.userhost()] = client
+
 	# Ensures existence of client wrapper for particular user
 	# Client wrapper is returned
 	def ensureClient(self, user, sender):
 		try:
-			return self.getClient(user)
+			return self.getClient(sender)
 		except:
-			self.clients[user.username] = ClientWrapper(self, user, sender.userhost())
-			return self.getClient(user)
+			self.addClient(sender, ClientWrapper(self, user, sender.userhost()))
+			return self.getClient(sender)
 		
 	# Send message
 	def sendMessage(self, to, fro, text, messageType = "chat"):
