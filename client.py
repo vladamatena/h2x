@@ -35,9 +35,11 @@ class ClientWrapper:
 		self.jid = jid
 		self.user = User(jid.userhost())
 		self.state = State.disconnected
+		self.targetState = State.disconnected
 		self.thread = None
 		self.loop = None
 		self.client = None
+		self.userList = None
 
 		# Track connected instances of XMPP clients, for presence control
 		self.xmppClients = set()
@@ -53,6 +55,7 @@ class ClientWrapper:
 		return self.user.token
 
 	def connect(self):
+		self.targetState = State.connected
 		if self.state == State.disconnected:
 			self.state = State.connecting
 			print("Connect!!!")
@@ -60,6 +63,7 @@ class ClientWrapper:
 			self.thread.start()
 
 	def disconnect(self):
+		self.targetState = State.disconnected
 		if self.state == State.connected:
 			self.state == State.disconnecting
 			print("Disconnect!!!")
@@ -70,6 +74,18 @@ class ClientWrapper:
 			future.add_done_callback(lambda future: print("Disconnect done"))
 
 			self.sendPresence()
+
+	def stateUpdate(self, current: State = None):
+		if current:
+			self.state = current
+		print("StateSwitch: now: " + self.state.__str__() + " want: " + self.targetState.__str__())
+
+		if self.targetState == State.connected and self.state == State.disconnected:
+			self.connect()
+		if self.targetState == State.disconnected and self.state == State.connected:
+			self.disconnect()
+
+		self.sendPresence()
 
 	def clientBody(self):
 		# Initialize asyncio loop for this thread
@@ -93,6 +109,7 @@ class ClientWrapper:
 
 		# Connect and run client
 		self.sendPresence()
+
 		# This will return when connection ends
 		try:
 			print("Running in loop")
@@ -101,10 +118,9 @@ class ClientWrapper:
 		finally:
 			loop.close()
 
-		self.state = State.disconnected
+		# Notify about client termination, resolve possible requested state change
+		self.stateUpdate(State.disconnected)
 
-		# Notify about client termination
-		self.sendPresence()
 		print("Client thread terminates")
 
 	@asyncio.coroutine
@@ -120,9 +136,16 @@ class ClientWrapper:
 
 		yield from self.updateParticipantPresence()
 
+		self.stateUpdate()
+
 	@asyncio.coroutine
 	def updateParticipantPresence(self):
 		print("Sending presence for hangouts users")
+
+		# Guard for empty user list (possibly not yet connected client)
+		if not self.userList:
+			return
+
 		# Create list of all participants
 		participants = []
 		for user in self.userList.get_all():
@@ -133,29 +156,35 @@ class ClientWrapper:
 				)
 				participants.append(participant)
 
-		# Create presence request
-		req = hangups.hangouts_pb2.QueryPresenceRequest(
-			participant_id=iter(participants),
-			field_mask=iter([1, 2, 7])  # All fields (reachable, available, device)
-		)
+		# If we are supposed to be connected, query state
+		if self.targetState == State.connected:
+			# Create presence request
+			req = hangups.hangouts_pb2.QueryPresenceRequest(
+				participant_id=iter(participants),
+				field_mask=iter([1, 2, 7])  # All fields (reachable, available, device)
+			)
 
-		# Send the request
-		resp = yield from asyncio.async(self.client.query_presence(req), loop=self.loop)
+			# Send the request
+			resp = yield from asyncio.async(self.client.query_presence(req), loop=self.loop)
 
-		# Process presence from result
-		presences = resp.presence_result
-		for presence in presences:
-			if presence.presence.reachable:
-				state = "available"
-			else:
-				state = "unavailable"
+			# Process presence from result
+			presences = resp.presence_result
+			for presence in presences:
+				if presence.presence.reachable:
+					state = "available"
+				else:
+					state = "unavailable"
 
-			if presence.presence.available:
-				show = "xa"
-			else:
-				show = None
+				if presence.presence.available:
+					show = "xa"
+				else:
+					show = None
 
-			self.h2x.sendPresence(self.jid, state, source=self.participant2JID(presence.user_id), show=show)
+				self.h2x.sendPresence(self.jid, state, source=self.participant2JID(presence.user_id), show=show)
+		else:
+			# If we are disconnected just say everybody is disconnected
+			for participant in participants:
+				self.h2x.sendPresence(self.jid, "unavailable", source=self.participant2JID(participant))
 
 	# Check if uses is in contact list
 	def isSubscribed(self, jid: JID):
@@ -176,6 +205,9 @@ class ClientWrapper:
 		elif self.state == State.disconnecting:
 			self.h2x.sendPresence(self.jid, "available", "Client disconnecting...")
 
+		if self.loop and not self.loop.is_closed():
+			asyncio.async(self.updateParticipantPresence(), loop=self.loop)
+
 	def getUser(self, jid: JID):
 		uid = self.JID2Hang(jid)
 		return self.userList.get_user(uid)
@@ -191,10 +223,12 @@ class ClientWrapper:
 	@asyncio.coroutine
 	def onDisconnect(self):
 		print("Disconnected")
+		self.stateUpdate(State.disconnected)
 
 	@asyncio.coroutine
 	def onReconnect(self):
 		print("Reconnected")
+		self.stateUpdate(State.connected)
 
 	@asyncio.coroutine
 	def onStateUpdate(self, state: hangups.hangouts_pb2.StateUpdate):
@@ -231,8 +265,9 @@ class ClientWrapper:
 					# TODO: message timestamp for offline delivery
 					self.h2x.sendMessage(self.jid, self.hang2JID(user), convEvent.text)
 			conv.update_read_timestamp()
-
-		# TODO: Handle other events
+		else:
+			print("Unsupported conversation event " + type(convEvent))
+			# TODO: Handle other events
 
 	def sendMessage(self, recipient: JID, text: str):
 		# Pick the conversation with the recipient user only
@@ -269,19 +304,14 @@ class ClientWrapper:
 	def processComponentPresence(self, sender: JID, presenceType: str, recipient: JID):
 		if presenceType == "available":
 			if not self.xmppClients:
-				self.connect()
-			else:
-				# Tell the client we are online
-				self.h2x.sendPresence(self.jid, "available")
-				if self.loop:
-					asyncio.async(self.updateParticipantPresence(), loop=self.loop)
+				print("Available requested, no xmpp clients yet -> connect")
+				self.targetState = State.connected
 			self.xmppClients.add(sender)
 		elif presenceType == "unavailable":
 			self.xmppClients.discard(sender)
 			if not self.xmppClients:
-				self.disconnect()
-			else:
-				self.h2x.sendPresence(self.jid, "unavailable")
+				print("Unavailable requested, no xmpp clients now -> disconnect")
+				self.targetState = State.disconnected
 		elif presenceType == "probe":
 			self.sendPresence()
 		elif presenceType == "subscribed":
@@ -290,3 +320,6 @@ class ClientWrapper:
 			self.h2x.sendPresence(self.jid, "subscribed", source=recipient)
 		else:
 			raise NotImplementedError("Presence type: " + presenceType)
+
+		# Ensure we are in the requested state
+		self.stateUpdate()
