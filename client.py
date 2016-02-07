@@ -4,6 +4,7 @@ import asyncio
 import re
 import threading
 from enum import Enum
+from pprint import pprint
 
 from twisted.words.protocols.jabber.jid import JID
 
@@ -70,8 +71,11 @@ class ClientWrapper:
 
 			self.sendPresence()
 
-			future = asyncio.async(self.client.disconnect(), loop=self.loop)
-			future.add_done_callback(lambda future: print("Disconnect done"))
+			try:
+				future = asyncio.async(self.client.disconnect(), loop=self.loop)
+				future.add_done_callback(lambda future: print("Disconnect done"))
+			except Exception as e:
+				print("Disconnect failed: ", e)
 
 			self.sendPresence()
 
@@ -90,10 +94,9 @@ class ClientWrapper:
 	def clientBody(self):
 		# Initialize asyncio loop for this thread
 		self.loop = asyncio.new_event_loop()
-		loop = self.loop
-		asyncio.set_event_loop(loop)
+		asyncio.set_event_loop(self.loop)
 
-		# Get outh2 cookies
+		# Get oauth2 cookies
 		self.h2x.sendPresence(self.jid, "unavailable", "Getting cookies")
 		cookies = hangups.auth.get_auth(self.getToken, self.user.tokenRefreshPath())
 
@@ -113,10 +116,10 @@ class ClientWrapper:
 		# This will return when connection ends
 		try:
 			print("Running in loop")
-			loop.run_until_complete(self.client.connect())
+			self.loop.run_until_complete(self.client.connect())
 			print("Loop done")
 		finally:
-			loop.close()
+			self.loop.close()
 
 		# Notify about client termination, resolve possible requested state change
 		self.stateUpdate(State.disconnected)
@@ -138,6 +141,44 @@ class ClientWrapper:
 
 		self.stateUpdate()
 
+		# Test presence setting
+		print("Trying to set presence")
+
+	#		print("PresenceStateSettings:")
+	#		pprint(vars(hangups.hangouts_pb2.PresenceStateSetting))
+	#		print("DND settings")
+	#		pprint(vars(hangups.hangouts_pb2.DndSetting))
+	#		print("DesktopOff")
+	#		pprint(vars(hangups.hangouts_pb2.DesktopOffSetting))
+	#		print("Mood")
+	#		pprint(vars(hangups.hangouts_pb2.MoodSetting))
+
+
+	# ClientPresenceStateType
+	#		setPresenceRequest = hangups.hangouts_pb2.SetPresenceRequest(
+	#			presence_state_setting = hangups.hangouts_pb2.PresenceStateSetting(
+	#				timeout_secs = 30,
+	#				type = 0
+	#			),
+	#			dnd_setting = hangups.hangouts_pb2.DndSetting(
+	#				do_not_disturb = 0,
+	#				timeout_secs = 30
+	#			),
+	#			desktop_off_setting = hangups.hangouts_pb2.DesktopOffSetting(
+	#				desktop_off = 0
+	#			)
+	#		)
+
+	##		,mood_setting = hangups.hangouts_pb2.MoodSetting(
+	##			mood_message = hangups.hangouts_pb2.MoodMessage(
+	##				mood_content = "Online"
+	##			)
+	##		)
+
+	##		#hangups.hangouts_pb2.ClientPresenceStateType._enum_type.values[0],
+	#		asyncio.async(self.client.set_presence(setPresenceRequest), loop=self.loop)
+	#		print("Presence set started")
+
 	@asyncio.coroutine
 	def updateParticipantPresence(self):
 		print("Sending presence for hangouts users")
@@ -151,8 +192,8 @@ class ClientWrapper:
 		for user in self.userList.get_all():
 			if not user.is_self:
 				participant = hangups.hangouts_pb2.ParticipantId(
-					gaia_id=user.id_.gaia_id,
-					chat_id=user.id_.chat_id
+						gaia_id=user.id_.gaia_id,
+						chat_id=user.id_.chat_id
 				)
 				participants.append(participant)
 
@@ -160,8 +201,8 @@ class ClientWrapper:
 		if self.targetState == State.connected:
 			# Create presence request
 			req = hangups.hangouts_pb2.QueryPresenceRequest(
-				participant_id=iter(participants),
-				field_mask=iter([1, 2, 7])  # All fields (reachable, available, device)
+					participant_id=iter(participants),
+					field_mask=iter([1, 2, 7])  # All fields (reachable, available, device)
 			)
 
 			# Send the request
@@ -267,7 +308,7 @@ class ClientWrapper:
 			conv.update_read_timestamp()
 		else:
 			print("Unsupported conversation event " + type(convEvent))
-			# TODO: Handle other events
+		# TODO: Handle other events
 
 	def sendMessage(self, recipient: JID, text: str):
 		# Pick the conversation with the recipient user only
@@ -285,7 +326,7 @@ class ClientWrapper:
 		# Send message
 		segments = hangups.ChatMessageSegment.from_str(text)
 		asyncio.async(
-			conversation.send_message(segments), loop=self.loop
+				conversation.send_message(segments), loop=self.loop
 		).add_done_callback(lambda x: print("Message sent"))
 
 	def processPresence(self, recipient, presence):
