@@ -275,7 +275,12 @@ class ClientWrapper:
 	def onStateUpdate(self, state: hangups.hangouts_pb2.StateUpdate):
 		print("StateUpdate:" + state.__str__())
 		# TODO: This is stupid but works, we would like to update only changed presence
-		yield from self.updateParticipantPresence()
+		try:
+			yield from self.updateParticipantPresence()
+		except Exception as e:
+			print("Update participant presence failed with exception " + e);
+			print("Forcing reconnect")
+			self.stateUpdate(State.disconnected)
 
 	def ids2JID(self, chat_id: str, gaia_id: str):
 		return chat_id + "." + gaia_id + "@" + self.h2x.config.JID
