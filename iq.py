@@ -154,7 +154,7 @@ class Iq:
 		vcard = iq.addElement("vCard")
 		vcard.attributes["xmlns"] = "vcard-temp"
 
-		userInfo = self.h2x.getClient(sender).getUser(recipient.userhost())
+		userInfo = self.h2x.getClient(sender).getUser(recipient)
 
 		# TODO: Get more user info
 		vcard.addElement("FN", content=userInfo.full_name)

@@ -62,6 +62,7 @@ class ClientWrapper:
 			print("Connect!!!")
 			self.thread = threading.Thread(target=self.clientBody)
 			self.thread.start()
+		self.sendPresence()
 
 	def disconnect(self):
 		self.targetState = State.disconnected
