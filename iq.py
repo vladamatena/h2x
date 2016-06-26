@@ -285,6 +285,4 @@ class Iq:
 			error.attributes["code"] = str(ERROR_CODE_MAP[condition])
 			cond = error.addElement(condition)
 			cond.attributes["xmlns"] = "urn:ietf:params:xml:ns:xmpp-stanzas"
-			if not sender:
-				sender = self.h2x
-			sender.send(el)
+			self.h2x.send(el)
