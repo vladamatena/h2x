@@ -279,7 +279,7 @@ class ClientWrapper:
 		try:
 			yield from self.updateParticipantPresence()
 		except Exception as e:
-			print("Update participant presence failed with exception " + e);
+			print("Update participant presence failed with exception " + str(e));
 			print("Forcing reconnect")
 			self.stateUpdate(State.disconnected)
 
