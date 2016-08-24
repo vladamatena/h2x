@@ -5,3 +5,4 @@ twisted.repo
 twisted
 users
 .idea
+/logs/
